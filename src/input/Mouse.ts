@@ -70,6 +70,6 @@ export class MouseInput {
 
   private isUiInteractive(target: EventTarget | null): boolean {
     if (!(target instanceof Element)) return false;
-    return target.closest('button, input, select, textarea, .interactive') !== null;
+    return target.closest('button, input, select, textarea, .interactive, .touch-controls') !== null;
   }
 }

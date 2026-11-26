@@ -143,13 +143,16 @@
       #app {
         width: 100%;
         height: 100%;
+        height: 100dvh;
         overflow: hidden;
         background: #141311;
         color: #f4efe6;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        touch-action: manipulation;
       }
       #app {
-        position: relative;
+        position: fixed;
+        inset: 0;
       }
       #canvas-host {
         position: absolute;
@@ -207,6 +210,13 @@
         .menu-body { grid-template-columns:1fr; gap:20px; }
         .menu-overlay > div:last-child { flex-direction:column; gap:8px; }
       }
+      .menu-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+      .menu-fullscreen-btn {
+        display:inline-flex; align-items:center; gap:8px; padding:10px 14px; min-height:44px;
+        background:rgba(36,33,28,0.92); color:#f5ebd6; border:1px solid rgba(235,196,91,0.45);
+        border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; flex-shrink:0;
+      }
+      .menu-fullscreen-btn svg { width:18px; height:18px; color:#ebc45b; }
       .menu-controls { display:flex; flex-direction:column; gap:12px; min-width:0; }
       .mode-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
       .match-selectors { display:flex; gap:12px; max-width:560px; }
@@ -261,23 +271,491 @@
       @media (max-width:700px) { .boss-choice-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
       @media (max-width:480px) { .boss-choice-grid { grid-template-columns:1fr; } .game-panel { padding:20px !important; } .daily-feature { padding:16px; } }
 
-      .touch-controls { position:absolute; inset:0; pointer-events:none; z-index:25; --touch-size:52px; }
-      .touch-controls[hidden] { display:none; }
-      .touch-controls[data-size="large"] { --touch-size:62px; }
-      .touch-pad { position:absolute; bottom:max(12px,env(safe-area-inset-bottom)); display:grid; grid-template-columns:repeat(3,var(--touch-size)); gap:8px; opacity:var(--touch-opacity,0.85); }
-      .touch-movement { left:max(12px,env(safe-area-inset-left)); }
-      .touch-attacks { right:max(12px,env(safe-area-inset-right)); }
-      .touch-controls button { pointer-events:auto; touch-action:none; -webkit-touch-callout:none; height:var(--touch-size); border:1px solid #b69a61; border-radius:12px; color:#fff5dc; background:#201c17ed; font-size:12px; font-weight:700; }
-      .touch-controls button[data-held] { background:#f0c65a; color:#211b0c; border-color:#fff0bb; }
-      .touch-controls [data-touch="parry"] { border-color:#a5d7ff; }
-      .touch-controls [data-touch="special"] { border-color:#d3a5ff; }
-      .touch-controls .touch-pause { position:absolute; right:max(12px,env(safe-area-inset-right)); top:max(70px,env(safe-area-inset-top)); height:44px; padding:0 14px; }
-      .settings-overlay select { max-width:58%; min-height:44px; background:#27221b; color:#f4efe6; border:1px solid #807156; border-radius:5px; }
-      @media (max-width:480px) {
-        .touch-controls { --touch-size:46px; }
-        .touch-controls[data-size="large"] { --touch-size:50px; }
-        .touch-pad { gap:5px; }
+      @media (max-height:540px) {
+        .menu-overlay {
+          padding: max(12px, env(safe-area-inset-top)) max(22px, env(safe-area-inset-right)) max(22px, env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-left)) !important;
+          gap: 10px;
+        }
+        .menu-overlay h1 { font-size: clamp(22px, 3.8vw, 32px) !important; letter-spacing: 4px !important; }
+        .menu-controls { gap: 8px; }
+        .mode-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+        .online-grid { grid-template-columns: 1fr 1.3fr 1fr; gap: 8px; }
+        .control-card { padding: 10px 12px; gap: 10px; }
+        .control-card-primary { padding: 12px 16px; }
+        .control-card-primary .control-title { font-size: 18px; }
+        .control-title { font-size: 13px; }
+        .control-description { font-size: 11px; line-height: 1.35; }
+        .control-icon { width: 22px; height: 22px; }
+        .control-card-primary .control-icon { width: 28px; height: 28px; }
+        .game-panel { padding: 14px 18px !important; max-height: calc(100dvh - 16px) !important; gap: 6px !important; }
+        .game-panel h2 { font-size: 20px !important; margin-bottom: 0 !important; }
+        .game-panel > p { font-size: 11.5px; line-height: 1.3; }
+        .game-panel .panel-action { padding: 8px 12px !important; min-height: 44px !important; flex-direction: row !important; justify-content: space-between !important; align-items: center !important; gap: 10px !important; }
+        .panel-action span { font-size: 11px; }
       }
+
+      /* HUD spacing adjustment when top-corner touch utility buttons are visible */
+      .hud-overlay.with-touch {
+        padding: max(10px, env(safe-area-inset-top)) max(76px, calc(env(safe-area-inset-right) + 68px)) 10px max(76px, calc(env(safe-area-inset-left) + 68px)) !important;
+      }
+
+      /* Mobile Touch Controls: Left Virtual Joystick + Right Combat Arc */
+      .touch-controls {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 25;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: none;
+        --touch-scale: 1;
+        --touch-opacity: 0.85;
+      }
+      .touch-controls[hidden] { display: none; }
+      .touch-controls[data-size="large"] { --touch-scale: 1.12; }
+      @media (max-height: 410px), (max-width: 720px) {
+        .touch-controls { --touch-scale: 0.92; }
+        .touch-controls[data-size="large"] { --touch-scale: 1.02; }
+      }
+
+      /* Top Utility Buttons (Fullscreen & Pause) */
+      .touch-utility-btn {
+        position: absolute;
+        top: max(10px, env(safe-area-inset-top));
+        min-width: 46px;
+        height: 44px;
+        padding: 0 9px;
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        pointer-events: auto;
+        touch-action: none;
+        border-radius: 10px;
+        border: 1px solid rgba(235, 196, 91, 0.42);
+        background: rgba(22, 20, 17, 0.84);
+        backdrop-filter: blur(6px);
+        color: #f8f2e4;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.6px;
+        opacity: var(--touch-opacity, 0.85);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        transition: transform 90ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out;
+      }
+      .touch-utility-btn svg { width: 17px; height: 17px; color: #ebc45b; }
+      .touch-utility-btn:active { transform: scale(0.92); background: rgba(235, 196, 91, 0.25); }
+      .touch-utility-btn[data-active="true"] { border-color: #f5c84c; background: rgba(54, 45, 24, 0.88); }
+      .touch-fullscreen { left: max(12px, env(safe-area-inset-left)); }
+      .touch-pause { right: max(12px, env(safe-area-inset-right)); }
+
+      /* Left Side Virtual Joystick */
+      .touch-joystick-zone {
+        position: absolute;
+        left: max(14px, env(safe-area-inset-left));
+        bottom: max(14px, env(safe-area-inset-bottom));
+        width: 156px;
+        height: 156px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: auto;
+        touch-action: none;
+        transform: scale(var(--touch-scale));
+        transform-origin: bottom left;
+        opacity: var(--touch-opacity, 0.85);
+      }
+      .touch-joystick-base {
+        position: relative;
+        width: 126px;
+        height: 126px;
+        border-radius: 50%;
+        background: radial-gradient(circle at center, rgba(38, 34, 28, 0.72) 0%, rgba(18, 16, 14, 0.88) 72%);
+        border: 2px solid rgba(235, 196, 91, 0.36);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.52), inset 0 0 18px rgba(235, 196, 91, 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: border-color 120ms ease, box-shadow 120ms ease;
+      }
+      .touch-joystick-base[data-active="true"] {
+        border-color: rgba(245, 200, 76, 0.82);
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), inset 0 0 22px rgba(245, 200, 76, 0.16);
+      }
+      .touch-joystick-ring {
+        position: absolute;
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        border: 1px dashed rgba(255, 255, 255, 0.14);
+        pointer-events: none;
+      }
+      .touch-joystick-dir {
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        color: rgba(244, 239, 230, 0.35);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        transition: color 70ms ease, transform 70ms ease, filter 70ms ease;
+      }
+      .touch-joystick-dir svg { width: 100%; height: 100%; }
+      .touch-joystick-dir.dir-up { top: 7px; left: 50%; transform: translateX(-50%); }
+      .touch-joystick-dir.dir-down { bottom: 7px; left: 50%; transform: translateX(-50%); }
+      .touch-joystick-dir.dir-left { left: 7px; top: 50%; transform: translateY(-50%); }
+      .touch-joystick-dir.dir-right { right: 7px; top: 50%; transform: translateY(-50%); }
+      .touch-joystick-dir[data-lit="true"] {
+        color: #ffd54f;
+        filter: drop-shadow(0 0 6px rgba(255, 213, 79, 0.85));
+      }
+      .touch-joystick-dir.dir-up[data-lit="true"] { transform: translateX(-50%) scale(1.22); }
+      .touch-joystick-dir.dir-down[data-lit="true"] { transform: translateX(-50%) scale(1.22); }
+      .touch-joystick-dir.dir-left[data-lit="true"] { transform: translateY(-50%) scale(1.22); }
+      .touch-joystick-dir.dir-right[data-lit="true"] { transform: translateY(-50%) scale(1.22); }
+
+      .touch-joystick-knob {
+        position: relative;
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 35% 30%, #4b4335 0%, #26221b 65%, #171511 100%);
+        border: 2px solid #ebc45b;
+        box-shadow: 0 5px 14px rgba(0, 0, 0, 0.65), inset 0 1px 4px rgba(255, 240, 190, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        transition: transform 110ms cubic-bezier(0.2, 0.9, 0.3, 1);
+      }
+      .touch-joystick-knob[data-dragging="true"] {
+        transition: none;
+        border-color: #fff0bb;
+        box-shadow: 0 6px 18px rgba(245, 200, 76, 0.42), inset 0 1px 6px rgba(255, 245, 210, 0.45);
+      }
+      .touch-joystick-core {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 1.5px solid rgba(235, 196, 91, 0.45);
+        background: rgba(235, 196, 91, 0.12);
+      }
+
+      /* Right Side Ergonomic Action Cluster */
+      .touch-actions-cluster {
+        position: absolute;
+        right: max(14px, env(safe-area-inset-right));
+        bottom: max(14px, env(safe-area-inset-bottom));
+        width: 204px;
+        height: 188px;
+        pointer-events: none;
+        transform: scale(var(--touch-scale));
+        transform-origin: bottom right;
+        opacity: var(--touch-opacity, 0.85);
+      }
+      .touch-btn {
+        position: absolute;
+        overflow: hidden;
+        pointer-events: auto;
+        touch-action: none;
+        border-radius: 50%;
+        border: 2px solid rgba(235, 196, 91, 0.55);
+        background: radial-gradient(circle at 35% 28%, rgba(46, 41, 34, 0.92), rgba(22, 20, 17, 0.94));
+        color: #fff6e0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1px;
+        padding: 0;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.52), inset 0 1px 3px rgba(255, 255, 255, 0.14);
+        transition: transform 70ms ease-out, border-color 90ms ease-out, box-shadow 90ms ease-out;
+      }
+      .touch-btn-icon {
+        position: relative;
+        z-index: 2;
+        width: 22px;
+        height: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .touch-btn-icon svg { width: 100%; height: 100%; }
+      .touch-btn-label {
+        position: relative;
+        z-index: 2;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.1px;
+        line-height: 1;
+        color: #e8dec9;
+      }
+      .touch-btn[data-held="true"] {
+        transform: scale(0.9);
+        background: radial-gradient(circle at center, #f5c84c 0%, #d19e29 100%);
+        border-color: #fff5cc !important;
+        color: #1d170a;
+        box-shadow: 0 0 18px rgba(245, 200, 76, 0.65);
+      }
+      .touch-btn[data-held="true"] .touch-btn-label { color: #1d170a; }
+
+      /* Arc Button Positions & Semantic Colors */
+      .touch-btn-light {
+        width: 62px; height: 62px; right: 0; bottom: 0;
+        border-color: rgba(245, 200, 76, 0.72);
+      }
+      .touch-btn-light .touch-btn-icon { width: 25px; height: 25px; color: #ffd54f; }
+      .touch-btn-light[data-held="true"] .touch-btn-icon { color: #1d170a; }
+
+      .touch-btn-parry {
+        width: 54px; height: 54px; right: 72px; bottom: 4px;
+        border-color: rgba(147, 197, 253, 0.68);
+      }
+      .touch-btn-parry .touch-btn-icon { width: 21px; height: 21px; color: #93c5fd; }
+      .touch-btn-parry[data-held="true"] { background: radial-gradient(circle at center, #93c5fd 0%, #3b82f6 100%); box-shadow: 0 0 18px rgba(147, 197, 253, 0.7); }
+      .touch-btn-parry[data-held="true"] .touch-btn-icon { color: #0f172a; }
+
+      .touch-btn-grab {
+        width: 49px; height: 49px; right: 136px; bottom: 8px;
+        border-color: rgba(216, 201, 168, 0.56);
+      }
+      .touch-btn-grab .touch-btn-icon { width: 19px; height: 19px; color: #e2d5b8; }
+
+      .touch-btn-heavy {
+        width: 54px; height: 54px; right: 4px; bottom: 72px;
+        border-color: rgba(251, 191, 36, 0.68);
+      }
+      .touch-btn-heavy .touch-btn-icon { width: 22px; height: 22px; color: #fbbf24; }
+      .touch-btn-heavy[data-held="true"] .touch-btn-icon { color: #1d170a; }
+
+      .touch-btn-dodge {
+        width: 52px; height: 52px; right: 70px; bottom: 68px;
+        border-color: rgba(203, 213, 225, 0.58);
+      }
+      .touch-btn-dodge .touch-btn-icon { width: 21px; height: 21px; color: #e2e8f0; }
+
+      .touch-btn-break {
+        width: 49px; height: 49px; right: 132px; bottom: 66px;
+        border-color: rgba(248, 113, 113, 0.7);
+      }
+      .touch-btn-break .touch-btn-icon { width: 19px; height: 19px; color: #f87171; }
+      .touch-btn-break[data-held="true"] { background: radial-gradient(circle at center, #f87171 0%, #dc2626 100%); box-shadow: 0 0 18px rgba(248, 113, 113, 0.72); }
+      .touch-btn-break[data-held="true"] .touch-btn-icon,
+      .touch-btn-break[data-held="true"] .touch-btn-label { color: #fff; }
+
+      .touch-btn-special {
+        width: 56px; height: 56px; right: 3px; bottom: 134px;
+        border-color: rgba(56, 189, 248, 0.65);
+      }
+      .touch-btn-special .touch-btn-icon { width: 21px; height: 21px; color: #7dd3fc; }
+      .touch-special-fill {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 0%;
+        background: linear-gradient(180deg, rgba(56, 189, 248, 0.35), rgba(56, 189, 248, 0.65));
+        transition: height 120ms linear;
+        z-index: 1;
+        pointer-events: none;
+      }
+      .touch-btn-special[data-ready="true"] {
+        border-color: #ffd54f;
+        animation: touch-special-pulse 1.15s ease-in-out infinite;
+      }
+      .touch-btn-special[data-ready="true"] .touch-special-fill {
+        background: linear-gradient(180deg, rgba(255, 213, 79, 0.5), rgba(56, 189, 248, 0.72));
+      }
+      .touch-btn-special[data-ready="true"] .touch-btn-icon { color: #fff8dc; }
+      .touch-btn[data-counter="true"] {
+        border-color: #ffe066;
+        box-shadow: 0 0 16px rgba(255, 224, 102, 0.72);
+      }
+
+      @keyframes touch-special-pulse {
+        0%, 100% { box-shadow: 0 0 10px rgba(255, 213, 79, 0.55); transform: scale(1); }
+        50% { box-shadow: 0 0 22px rgba(56, 189, 248, 0.85), 0 0 10px rgba(255, 213, 79, 0.8); transform: scale(1.06); }
+      }
+
+      /* Mobile Horizontal Orientation & Fullscreen Gate */
+      .orientation-guard {
+        position: absolute;
+        inset: 0;
+        z-index: 100;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+        background: radial-gradient(circle at 50% 35%, rgba(235, 196, 91, 0.14), rgba(16, 15, 13, 0.98) 65%);
+        backdrop-filter: blur(10px);
+      }
+      .orientation-guard.visible {
+        display: flex;
+        animation: og-fade-in 220ms ease-out;
+      }
+      .orientation-card {
+        width: 100%;
+        max-width: 390px;
+        background: rgba(28, 25, 21, 0.95);
+        border: 1px solid rgba(235, 196, 91, 0.44);
+        border-radius: 18px;
+        padding: 26px 22px;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.78);
+      }
+      .orientation-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        border-radius: 999px;
+        background: rgba(235, 196, 91, 0.14);
+        border: 1px solid rgba(235, 196, 91, 0.4);
+        color: #f5c84c;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 1.2px;
+      }
+      .orientation-badge svg { width: 14px; height: 14px; }
+      .orientation-anim-stage {
+        position: relative;
+        width: 148px;
+        height: 118px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 4px 0;
+      }
+      .orientation-corners {
+        position: absolute;
+        inset: 4px;
+        animation: corner-pulse 2.6s ease-in-out infinite;
+      }
+      .orientation-corners .corner {
+        position: absolute;
+        width: 14px;
+        height: 14px;
+        border-color: rgba(245, 200, 76, 0.65);
+        border-style: solid;
+      }
+      .orientation-corners .tl { top: 0; left: 0; border-width: 2px 0 0 2px; border-top-left-radius: 4px; }
+      .orientation-corners .tr { top: 0; right: 0; border-width: 2px 2px 0 0; border-top-right-radius: 4px; }
+      .orientation-corners .bl { bottom: 0; left: 0; border-width: 0 0 2px 2px; border-bottom-left-radius: 4px; }
+      .orientation-corners .br { bottom: 0; right: 0; border-width: 0 2px 2px 0; border-bottom-right-radius: 4px; }
+      .orientation-arc {
+        position: absolute;
+        inset: 0;
+        color: rgba(245, 200, 76, 0.72);
+        animation: arc-pulse 2.6s ease-in-out infinite;
+      }
+      .orientation-arc svg { width: 100%; height: 100%; }
+      .orientation-phone {
+        position: relative;
+        width: 50px;
+        height: 82px;
+        border-radius: 10px;
+        border: 2.5px solid #f5ebd6;
+        background: #191612;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 4px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+        animation: phone-rotate-landscape 2.6s cubic-bezier(0.45, 0.05, 0.25, 0.95) infinite;
+      }
+      .orientation-phone-notch {
+        width: 16px;
+        height: 3px;
+        border-radius: 2px;
+        background: rgba(245, 235, 214, 0.45);
+      }
+      .orientation-phone-screen {
+        width: 34px;
+        height: 34px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .orientation-phone-screen svg { width: 100%; height: 100%; }
+      .orientation-phone-bar {
+        width: 14px;
+        height: 2.5px;
+        border-radius: 2px;
+        background: rgba(245, 200, 76, 0.6);
+      }
+      .orientation-title {
+        font-size: 24px;
+        font-weight: 800;
+        letter-spacing: 1px;
+        color: #fbf8f0;
+      }
+      .orientation-desc {
+        font-size: 13px;
+        line-height: 1.55;
+        color: #cfc5b4;
+      }
+      .orientation-cta {
+        width: 100%;
+        min-height: 50px;
+        padding: 12px 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        background: linear-gradient(180deg, #f5d167 0%, #ebc45b 100%);
+        color: #1c170b;
+        border: 1px solid #ffe7a3;
+        border-radius: 12px;
+        font-size: 15px;
+        font-weight: 800;
+        cursor: pointer;
+        box-shadow: 0 8px 20px rgba(235, 196, 91, 0.28);
+      }
+      .orientation-cta svg { width: 20px; height: 20px; flex-shrink: 0; }
+      .orientation-cta:active { transform: scale(0.97); }
+      .orientation-hint {
+        font-size: 11.5px;
+        line-height: 1.4;
+        color: #9e937f;
+      }
+      .orientation-hint[data-warn="true"] { color: #ffd54f; font-weight: 600; }
+
+      @keyframes og-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes phone-rotate-landscape {
+        0%, 16% { transform: rotate(0deg) scale(1); border-color: #f5ebd6; }
+        42%, 78% { transform: rotate(-90deg) scale(1.06); border-color: #f5c84c; }
+        94%, 100% { transform: rotate(0deg) scale(1); border-color: #f5ebd6; }
+      }
+      @keyframes corner-pulse {
+        0%, 20% { transform: scale(0.92); opacity: 0.45; }
+        48%, 76% { transform: scale(1.04); opacity: 1; }
+        95%, 100% { transform: scale(0.92); opacity: 0.45; }
+      }
+      @keyframes arc-pulse {
+        0%, 15% { opacity: 0.85; transform: rotate(0deg); }
+        45%, 78% { opacity: 0.25; transform: rotate(-18deg); }
+        95%, 100% { opacity: 0.85; transform: rotate(0deg); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .orientation-phone, .orientation-corners, .orientation-arc, .touch-btn-special[data-ready="true"] {
+          animation: none !important;
+        }
+        .orientation-phone { transform: rotate(-90deg); }
+      }
+
+      .settings-overlay select { max-width:58%; min-height:44px; background:#27221b; color:#f4efe6; border:1px solid #807156; border-radius:5px; }
       #app.combat-active, #app.combat-active * { cursor:none !important; }
       .sr-only {
         position: absolute;

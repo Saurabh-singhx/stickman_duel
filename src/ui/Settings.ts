@@ -148,7 +148,8 @@ export class SettingsView {
     opacityLabel.appendChild(opacity);
     card.appendChild(opacityLabel);
     const hint = document.createElement('p');
-    hint.textContent = 'Landscape gives you the clearest arena view. Hold Parry to block; Break performs an unblockable attack. Move and attack with separate thumbs.';
+    hint.textContent =
+      'Play in horizontal fullscreen for the best arena view. Use the left joystick to move, jump (up), and crouch (down). Right buttons trigger attacks, Parry (hold to block), Dodge, Break (unblockable), Grab, and Special.';
     card.appendChild(hint);
 
     section('Keyboard controls');

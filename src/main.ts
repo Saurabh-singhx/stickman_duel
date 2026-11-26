@@ -28,6 +28,13 @@ import { getDailyChallenge, loadProgress, saveProgress } from './systems/Progres
 import { loadSettings, saveSettings, toRenderOptions, type UserSettings } from './systems/Settings';
 import { recordMatchStats } from './systems/Stats';
 import { MenuView, type MenuAction } from './ui/Menus';
+import {
+  OrientationGuard,
+  enterFullscreenAndLandscape,
+  exitFullscreen,
+  isFullscreenActive,
+  isMobileTouchDevice,
+} from './ui/OrientationGuard';
 import { PauseView } from './ui/Pause';
 import { ResultsView } from './ui/Results';
 import { SettingsView } from './ui/Settings';
@@ -86,15 +93,20 @@ async function bootstrap(): Promise<void> {
   let paused = false;
   let resultsShown = false;
   let customPreviewState: GameState | null = null;
+  let orientationGuard: OrientationGuard | null = null;
 
   const gameHost = document.getElementById('app')!;
   const setCombatCapture = (active: boolean) => {
     gameHost.classList.toggle('combat-active', active);
     input.mouse.setCombatActive(active);
-    const touchEnabled = settings.touchMode === 'on' ||
-      (settings.touchMode === 'auto' && (settings.touchControls || navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches));
+    const touchEnabled =
+      settings.touchMode === 'on' ||
+      (settings.touchMode === 'auto' && (settings.touchControls || isMobileTouchDevice()));
+    const showTouch = active && touchEnabled && !(orientationGuard?.isPortraitBlocked() ?? false);
     input.touch.configure(settings.touchSize, settings.touchOpacity);
-    input.touch.setVisible(active && touchEnabled);
+    input.touch.setFullscreenState(isFullscreenActive());
+    input.touch.setVisible(showTouch);
+    hud.setTouchMode(showTouch);
     // Clear held controls across UI transitions.
     window.dispatchEvent(new Event('blur'));
     if (active) {
@@ -172,6 +184,19 @@ async function bootstrap(): Promise<void> {
   const handleMenuAction = (action: MenuAction) => {
     audio.unlock();
     sfx.playUiTick(true);
+
+    if (action.type === 'TOGGLE_FULLSCREEN') {
+      if (isFullscreenActive()) {
+        void exitFullscreen();
+      } else {
+        void enterFullscreenAndLandscape();
+      }
+      return;
+    }
+
+    if (action.type !== 'OPEN_SETTINGS' && isMobileTouchDevice()) {
+      void enterFullscreenAndLandscape();
+    }
 
     switch (action.type) {
       case 'QUICK_PLAY': {
@@ -326,6 +351,9 @@ async function bootstrap(): Promise<void> {
       input.keyboard.setBindings(1, next.p2Keys);
       input.gamepad.setMapping(next.gamepad);
       input.touch.configure(next.touchSize, next.touchOpacity);
+      if (mode && !paused && !resultsShown) {
+        setCombatCapture(true);
+      }
     },
     () => {
       settingsView.setVisible(false);
@@ -334,6 +362,9 @@ async function bootstrap(): Promise<void> {
 
   const pauseView = new PauseView(uiRoot, {
     onResume: () => {
+      if (isMobileTouchDevice()) {
+        void enterFullscreenAndLandscape();
+      }
       paused = false;
       pauseView.setVisible(false);
       audio.setPaused(false);
@@ -342,10 +373,10 @@ async function bootstrap(): Promise<void> {
     onRestart: () => handleMenuAction(lastAction),
     onSettings: () => settingsView.setVisible(true, settings),
     onFullscreen: () => {
-      if (!document.fullscreenElement) {
-        void document.documentElement.requestFullscreen?.().catch(() => {});
+      if (isFullscreenActive()) {
+        void exitFullscreen();
       } else {
-        void document.exitFullscreen?.().catch(() => {});
+        void enterFullscreenAndLandscape();
       }
     },
     onMainMenu: returnToMenu,
@@ -379,6 +410,30 @@ async function bootstrap(): Promise<void> {
     pauseView.setVisible(true);
     audio.setPaused(true);
   };
+  input.touch.onToggleFullscreen = () => {
+    if (isFullscreenActive()) {
+      void exitFullscreen();
+    } else {
+      void enterFullscreenAndLandscape();
+    }
+  };
+  orientationGuard = new OrientationGuard(uiRoot, {
+    onPortraitChange: (portrait) => {
+      if (portrait && mode && !paused && !resultsShown) {
+        paused = true;
+        setCombatCapture(false);
+        pauseView.setVisible(true);
+        audio.setPaused(true);
+      } else if (!portrait && mode && !paused && !resultsShown) {
+        setCombatCapture(true);
+      }
+      requestAnimationFrame(() => renderer.app.resize());
+    },
+    onFullscreenChange: (active) => {
+      input.touch.setFullscreenState(active);
+      requestAnimationFrame(() => renderer.app.resize());
+    },
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) input.touch.onPause();
   });
@@ -593,6 +648,7 @@ async function bootstrap(): Promise<void> {
       renderer.render(prev, curr, alpha, renderOpts);
       hud.update(curr, mode.p2Label);
       hud.setNetInfo(mode.getNetBadge());
+      input.touch.updateHudFeedback(curr.fighters[0].specialMeter, curr.fighters[0].counterWindow > 0);
 
       const subText = mode.getSubStatus();
       if (subText) {

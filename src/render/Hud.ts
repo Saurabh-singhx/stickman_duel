@@ -116,6 +116,11 @@ export class HudView {
     this.root.style.display = visible ? 'flex' : 'none';
   }
 
+  /** Adjusts top HUD spacing when mobile touch utility buttons occupy top corners. */
+  public setTouchMode(active: boolean): void {
+    this.root.classList.toggle('with-touch', active);
+  }
+
   /** Displays a temporary center callout banner (e.g. PARRY, GUARD BREAK, ROUND 1). */
   public showBanner(text: string, frames = 55, color = '#fff8e6'): void {
     this.bannerEl.textContent = text;

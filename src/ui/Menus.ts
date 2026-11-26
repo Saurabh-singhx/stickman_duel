@@ -17,7 +17,8 @@ export type MenuAction =
   | { readonly type: 'HOST_ROOM'; readonly stageId: StageId }
   | { readonly type: 'JOIN_ROOM'; readonly code: string }
   | { readonly type: 'IMPORT_REPLAY'; readonly code: string }
-  | { readonly type: 'OPEN_SETTINGS' };
+  | { readonly type: 'OPEN_SETTINGS' }
+  | { readonly type: 'TOGGLE_FULLSCREEN' };
 
 /**
  * Minimalist cinematic main menu featuring a single prominent PLAY CTA,
@@ -67,6 +68,8 @@ export class MenuView {
 
     // Header
     const header = document.createElement('div');
+    header.className = 'menu-header';
+    const titleWrap = document.createElement('div');
     const title = document.createElement('h1');
     title.textContent = 'Stickman Duel';
     title.style.cssText =
@@ -74,7 +77,18 @@ export class MenuView {
     const sub = document.createElement('div');
     sub.textContent = 'TIMING • PARRY • COUNTER • EXECUTE';
     sub.style.cssText = 'font-size:12px;letter-spacing:4px;color:#d8c9a8;margin-top:4px;';
-    header.append(title, sub);
+    titleWrap.append(title, sub);
+
+    const fsBtn = document.createElement('button');
+    fsBtn.type = 'button';
+    fsBtn.className = 'menu-fullscreen-btn';
+    fsBtn.dataset.testid = 'btn-menu-fullscreen';
+    fsBtn.setAttribute('aria-label', 'Toggle fullscreen landscape');
+    fsBtn.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg><span>Fullscreen</span>';
+    fsBtn.onclick = () => this.onAction({ type: 'TOGGLE_FULLSCREEN' });
+
+    header.append(titleWrap, fsBtn);
 
     // Main controls column
     const col = document.createElement('div');
