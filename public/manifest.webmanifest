@@ -1,0 +1,33 @@
+{
+  "name": "Stickman Duel",
+  "short_name": "Stickman Duel",
+  "description": "Minimal, cinematic 2D sword-duel browser game with pure deterministic 60 FPS lockstep combat and procedural audio.",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#141311",
+  "theme_color": "#141311",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["games", "action"]
+}
