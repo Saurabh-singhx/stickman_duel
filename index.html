@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Stickman Duel</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      html,
+      body,
+      #app {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #141311;
+        color: #f4efe6;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      #app {
+        position: relative;
+      }
+      #canvas-host {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      #ui-root {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 10;
+      }
+      #ui-root button,
+      #ui-root input,
+      #ui-root select,
+      #ui-root textarea,
+      #ui-root .interactive {
+        pointer-events: auto;
+      }
+
+
+      .menu-overlay { overflow:auto; gap:20px; }
+      .menu-overlay h1 { font-size:clamp(30px,5vw,56px) !important; letter-spacing:5px !important; text-shadow:none !important; }
+      .menu-body { display:grid; grid-template-columns:minmax(0,1080px); align-items:start; }
+      .menu-body > div { max-width:none !important; }
+      .menu-section-title { font-size:12px; color:#d8c9a8; margin:8px 0 0; letter-spacing:1px; }
+      .daily-feature { position:relative; padding:18px; background:#181623; border:1px solid #66537e; border-radius:8px; }
+      .daily-art { float:right; width:145px; margin:-12px -16px 0 0; }
+      .daily-art svg { width:100%; }
+      .daily-feature[hidden] { display:none; }
+      [data-testid='daily-toggle'][aria-expanded='true'] { border-color:#a78ac9 !important; background:#392b50 !important; }
+      .daily-feature button + button { margin-top:8px; background:transparent !important; }
+      .daily-feature label { font-size:13px; color:#eee5ff; }
+      .daily-feature h2 { font-size:22px; margin:0 0 4px; color:#eee5ff; }
+      .daily-feature p { font-size:13px; line-height:1.6; color:#cfc3df; margin:12px 0; }
+      .daily-feature .daily-title { color:#b8a0ff; margin:0; }
+      .daily-feature .daily-tactics { clear:both; color:#eee5ff; padding-top:12px; }
+      .daily-feature .daily-meta { font-size:11px; }
+      .daily-feature button { width:100%; border-color:#a78ac9 !important; background:#392b50 !important; }
+      .menu-overlay > div:last-child { gap:24px; line-height:1.7; }
+      .menu-overlay > div:last-child span:first-child { max-width:65ch; }
+      .menu-overlay button, .settings-overlay button { min-height:44px; transition:background-color 160ms ease-out, border-color 160ms ease-out; }
+      .menu-overlay button:disabled { opacity:0.4; cursor:not-allowed; }
+      .menu-overlay select { min-width:0; min-height:44px; }
+      .menu-overlay input { min-width:0; }
+      .menu-body > div > div:last-child { flex-wrap:wrap; }
+      .settings-overlay label { min-height:44px; gap:20px; border-bottom:1px solid #39342c; }
+      .settings-overlay input { accent-color:#f5c84c; }
+      .settings-overlay p { color:#d8c9a8; font-size:13px; line-height:1.5; }
+      button:focus-visible, input:focus-visible, select:focus-visible { outline:3px solid #ffe293; outline-offset:3px; }
+      @media (hover:hover) { .interactive button:not(:disabled):hover { filter:brightness(1.15); } }
+      @media (max-width:700px) {
+        .menu-overlay { padding:20px !important; }
+        .menu-body { grid-template-columns:1fr; gap:20px; }
+        .menu-overlay > div:last-child { flex-direction:column; gap:8px; }
+      }
+      .menu-controls { display:flex; flex-direction:column; gap:12px; min-width:0; }
+      .mode-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+      .match-selectors { display:flex; gap:12px; max-width:560px; }
+      .online-grid { display:grid; grid-template-columns:1fr 1.3fr 1fr; gap:12px; }
+      .join-controls { display:flex; align-items:stretch; gap:8px; min-width:0; }
+      .join-controls input { width:100px !important; flex-shrink:0; }
+      .join-controls .control-card { flex:1; }
+      .control-card { display:flex; align-items:flex-start; gap:14px; padding:18px; text-align:left; border:1px solid #5a5142; border-radius:10px; background:#24211c; color:#f4efe6; cursor:pointer; box-shadow:0 5px 12px #0003; min-width:0; }
+      .control-icon { width:28px; height:28px; flex-shrink:0; color:#edcc79; }
+      .control-icon svg { width:100%; height:100%; }
+      .control-copy { display:flex; flex-direction:column; gap:6px; min-width:0; }
+      .control-title { font-size:15px; font-weight:750; line-height:1.3; }
+      .control-description { color:#c9beac; font-size:12px; line-height:1.5; font-weight:400; }
+      .control-card-primary { background:#ebc45b; border-color:#ffe197; color:#201b10; align-items:center; padding:18px 22px; }
+      .control-card-primary .control-title { font-size:23px; }
+      .control-card-primary .control-description { color:#483b19; }
+      .control-card-primary .control-icon { color:#483b19; width:36px; height:36px; }
+      .control-card:active:not(:disabled) { transform:translateY(1px); box-shadow:none; }
+      .daily-feature { max-width:640px; }
+      .daily-feature .control-card { min-height:70px; }
+      .menu-section-title { font-size:15px; margin-top:12px; }
+      .menu-overlay { scrollbar-color:#807156 #201c17; }
+      @media (hover:hover) { .control-card:not(:disabled):hover { border-color:#e8c76c; background:#302a20; filter:none !important; } .control-card-primary:not(:disabled):hover { background:#f5d47a; } }
+      @media (max-width:1000px) { .mode-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .online-grid { grid-template-columns:1fr; } }
+      @media (max-width:480px) { .mode-grid { grid-template-columns:1fr; } .match-selectors { flex-direction:column; } .control-card { padding:16px; } }
+      @media (prefers-reduced-motion:reduce) { .control-card { transition:none !important; } .control-card:active:not(:disabled) { transform:none; } }
+
+      .menu-controls[hidden], .daily-feature[hidden] { display:none !important; }
+      .daily-feature { max-width:none; padding:24px; }
+      .daily-feature > .control-card { width:auto; min-height:44px; margin-bottom:20px; background:transparent !important; }
+      .daily-feature h2 { font-size:30px; }
+      .boss-choice-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:20px 0; }
+      .boss-choice-grid .control-card { margin:0; background:#24211c !important; border-color:#5a5142 !important; }
+      .boss-choice-grid .control-card[aria-pressed="true"] { background:#43305c !important; border:2px solid #d6b6ff !important; }
+      .daily-launch { border-top:1px solid #66537e; padding-top:8px; }
+      .daily-launch .control-card { width:100%; max-width:400px; background:#ebc45b !important; color:#201b10; }
+      .daily-launch .control-description, .daily-launch .control-icon { color:#483b19; }
+      .pause-overlay, .settings-overlay, .results-overlay { padding:20px; }
+      .game-panel { width:min(560px,100%) !important; max-height:calc(100dvh - 40px) !important; overflow:auto; padding:28px !important; border-color:#6b5c41 !important; box-shadow:0 20px 60px #0008; scrollbar-color:#807156 #201c17; }
+      .game-panel h2 { letter-spacing:0 !important; font-size:28px !important; text-align:left !important; }
+      .game-panel > p { font-size:13px; line-height:1.6; color:#c9beac; }
+      .game-panel .panel-action { display:flex; flex-direction:column; align-items:flex-start; gap:5px; padding:16px !important; min-height:54px; border-radius:8px !important; text-align:left; }
+      .panel-action span { font-size:12px; font-weight:400; color:#c9beac; }
+      .game-panel .panel-primary { background:#ebc45b !important; color:#201b10 !important; border-color:#ffe197 !important; }
+      .panel-primary span { color:#483b19; }
+      .settings-section { color:#edcc79; font-size:15px; margin-top:16px; padding-bottom:6px; }
+      .settings-overlay label { padding:10px 0; min-height:52px; }
+      .settings-overlay input[type="range"] { width:45%; }
+      .settings-overlay input[type="checkbox"] { width:20px; height:20px; flex-shrink:0; }
+      .settings-overlay button { min-height:44px; }
+      .settings-overlay .panel-primary { position:sticky; bottom:0; padding:14px !important; }
+      @media (max-width:700px) { .boss-choice-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+      @media (max-width:480px) { .boss-choice-grid { grid-template-columns:1fr; } .game-panel { padding:20px !important; } .daily-feature { padding:16px; } }
+
+      .touch-controls { position:absolute; inset:0; pointer-events:none; z-index:25; --touch-size:52px; }
+      .touch-controls[hidden] { display:none; }
+      .touch-controls[data-size="large"] { --touch-size:62px; }
+      .touch-pad { position:absolute; bottom:max(12px,env(safe-area-inset-bottom)); display:grid; grid-template-columns:repeat(3,var(--touch-size)); gap:8px; opacity:var(--touch-opacity,0.85); }
+      .touch-movement { left:max(12px,env(safe-area-inset-left)); }
+      .touch-attacks { right:max(12px,env(safe-area-inset-right)); }
+      .touch-controls button { pointer-events:auto; touch-action:none; -webkit-touch-callout:none; height:var(--touch-size); border:1px solid #b69a61; border-radius:12px; color:#fff5dc; background:#201c17ed; font-size:12px; font-weight:700; }
+      .touch-controls button[data-held] { background:#f0c65a; color:#211b0c; border-color:#fff0bb; }
+      .touch-controls [data-touch="parry"] { border-color:#a5d7ff; }
+      .touch-controls [data-touch="special"] { border-color:#d3a5ff; }
+      .touch-controls .touch-pause { position:absolute; right:max(12px,env(safe-area-inset-right)); top:max(70px,env(safe-area-inset-top)); height:44px; padding:0 14px; }
+      .settings-overlay select { max-width:58%; min-height:44px; background:#27221b; color:#f4efe6; border:1px solid #807156; border-radius:5px; }
+      @media (max-width:480px) {
+        .touch-controls { --touch-size:46px; }
+        .touch-controls[data-size="large"] { --touch-size:50px; }
+        .touch-pad { gap:5px; }
+      }
+      #app.combat-active, #app.combat-active * { cursor:none !important; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="canvas-host"></div>
+      <div id="ui-root"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
