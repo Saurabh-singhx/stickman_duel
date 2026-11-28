@@ -101,6 +101,7 @@ export class WavesMode implements GameMode {
       roundsToWin: 1,
       roundTimerFrames: BALANCE.DEFAULT_ROUND_TIMER_FRAMES,
       enableHazards: wc.enableHazards,
+      hazardImmuneSlot: 1,
       parryAssist: this.parryAssist,
       infiniteGuardP2: false,
       trainingMode: false,

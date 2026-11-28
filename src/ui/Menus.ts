@@ -277,6 +277,7 @@ export class MenuView {
     description.className = 'daily-tactics';
     const tactics: Record<DailyBossId, string> = {
       vesper: 'Jump the violet tide. Parry the astral strikes.',
+      raijin: 'Jump the arc surge. Parry the lightning dashes.',
       swordsman: 'Close the distance carefully. Parry the blade waves.',
       brawler: 'Watch the heavy windups. Jump the floor attacks.',
       assassin: 'Expect quick pressure. Time your dodge and counter.',
@@ -354,7 +355,7 @@ export class MenuView {
       ['Waves', 'Survive an endless sequence of opponents', 'waves'],
       ['Training Dojo', 'Learn your moves with no pressure to win', 'target'],
       ['Ghost Duel', 'Challenge a recorded opponent', 'ghost'],
-      ['Daily Boss Fights', 'Choose from five bosses in today’s arena', 'crown'],
+      ['Daily Boss Fights', 'Choose from six bosses in today’s arena', 'crown'],
       ['Settings', 'Tune audio, visuals and key bindings', 'settings'],
       ['Host Room', 'Create a room and invite a friend', 'players'],
       ['Join', 'Enter a friend’s room code to connect', 'arrow'],

@@ -42,7 +42,11 @@ export class CameraFx {
     const midY = Math.min(p1y, p2y) - 75;
     const dist = Math.abs(p2x - p1x);
 
-    const dynamicZoom = forcedZoom ?? Math.max(0.92, Math.min(1.22, 1.28 - dist / 1450));
+    const fitZoom = Math.min(1.6, Math.max(0.86, 1000 / Math.max(240, dist + 240)));
+    const dynamicZoom =
+      forcedZoom !== null
+        ? Math.min(forcedZoom, fitZoom)
+        : Math.max(0.92, Math.min(1.22, 1.28 - dist / 1450));
     this.targetZoom = dynamicZoom;
     this.zoom += (this.targetZoom - this.zoom) * 0.12;
 

@@ -5,6 +5,7 @@
 export class AudioSynth {
   private rng = 0x8b7e21;
   private noiseBuffer: AudioBuffer | null = null;
+  private rumbleBuffer: AudioBuffer | null = null;
   private lastPitchOffset = 0;
 
   /** Returns a float in [0, 1) from the audio-only PRNG. */
@@ -42,6 +43,33 @@ export class AudioSynth {
       data[i] = this.rand() * 2 - 1;
     }
     this.noiseBuffer = buf;
+    return buf;
+  }
+
+  /** Returns a cached 3-second brown/pink-weighted noise buffer for realistic rolling thunder & rain. */
+  public getRumbleBuffer(ctx: AudioContext): AudioBuffer {
+    if (this.rumbleBuffer && this.rumbleBuffer.sampleRate === ctx.sampleRate) {
+      return this.rumbleBuffer;
+    }
+    const len = ctx.sampleRate * 3;
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    let brown = 0;
+    let peak = 0.001;
+    for (let i = 0; i < len; i += 1) {
+      const white = this.rand() * 2 - 1;
+      // Integrated leaky brown noise + slight white grit for natural storm texture
+      brown = (brown + 0.04 * white) / 1.04;
+      const sample = brown * 2.8 + white * 0.12;
+      data[i] = sample;
+      const abs = Math.abs(sample);
+      if (abs > peak) peak = abs;
+    }
+    const norm = 0.9 / peak;
+    for (let i = 0; i < len; i += 1) {
+      data[i] = data[i]! * norm;
+    }
+    this.rumbleBuffer = buf;
     return buf;
   }
 
@@ -83,14 +111,16 @@ export class AudioSynth {
     duration: number,
     gainPeak: number,
     startTime: number,
+    useRumbleBuffer = false,
   ): void {
     const src = ctx.createBufferSource();
-    src.buffer = this.getNoiseBuffer(ctx);
+    src.buffer = useRumbleBuffer ? this.getRumbleBuffer(ctx) : this.getNoiseBuffer(ctx);
+    src.loop = true;
     const filter = ctx.createBiquadFilter();
     filter.type = filterType;
     filter.Q.setValueAtTime(q, startTime);
-    filter.frequency.setValueAtTime(Math.max(40, freqStart), startTime);
-    filter.frequency.exponentialRampToValueAtTime(Math.max(40, freqEnd), startTime + duration);
+    filter.frequency.setValueAtTime(Math.max(30, freqStart), startTime);
+    filter.frequency.exponentialRampToValueAtTime(Math.max(30, freqEnd), startTime + duration);
 
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.0001, startTime);
@@ -100,7 +130,7 @@ export class AudioSynth {
     src.connect(filter);
     filter.connect(gain);
     gain.connect(dest);
-    src.start(startTime);
+    src.start(startTime, this.rand() * 0.5);
     src.stop(startTime + duration + 0.02);
   }
 }

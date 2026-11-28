@@ -190,8 +190,49 @@ export function stepFighter(
     }
   };
 
+  const oppSpecialStartup = opponent.action === 'special_startup';
+
   // Advance state machine
   if (
+    oppSpecialStartup &&
+    action !== 'parry_active' &&
+    action !== 'dodge' &&
+    action !== 'hitstun' &&
+    action !== 'blockstun' &&
+    action !== 'parry_stagger' &&
+    action !== 'guard_break' &&
+    action !== 'knockdown' &&
+    action !== 'getup' &&
+    action !== 'execution_atk' &&
+    action !== 'execution_vic'
+  ) {
+    // Any player special power startup immediately stops the enemy's current attack/movement,
+    // while still permitting a timed parry or dodge counterplay.
+    if (canAct && blockJustPressed && grounded && parryCooldown === 0) {
+      action = 'parry_active';
+      actionFrame = 0;
+      currentMove = null;
+      moveHitLanded = false;
+      vx = 0;
+    } else if (canAct && bufferedIntent === 'dodge') {
+      action = 'dodge';
+      actionFrame = 0;
+      currentMove = null;
+      moveHitLanded = false;
+      dodgeDir = moveDir !== 0 ? moveDir : facing;
+      perfectDodgeTriggered = false;
+      bufferedIntent = 'none';
+      bufferFrames = 0;
+      vx = dodgeDir * scalePercent(BALANCE.DODGE_SPEED, spec.speedPercent);
+      events.push({ type: 'DODGE', slot: f.slot, x, y, dir: dodgeDir });
+    } else {
+      currentMove = null;
+      moveHitLanded = false;
+      action = grounded ? 'idle' : 'jump';
+      actionFrame += 1;
+      vx = approachInt(vx, 0, BALANCE.FRICTION * 3);
+    }
+  } else if (
     action === 'hitstun' ||
     action === 'blockstun' ||
     action === 'parry_stagger' ||
@@ -275,6 +316,10 @@ export function stepFighter(
     actionFrame += 1;
     const move = MOVES[currentMove];
     vx = approachInt(vx, 0, Math.trunc(BALANCE.FRICTION * 0.9));
+
+    if (actionFrame === move.startup) {
+      events.push({ type: 'ATTACK_SWING', slot: f.slot, move: currentMove, x, y, facing });
+    }
 
     // Strict full-animation rule: never cancel mid-swing.
     // Only after the full swing + follow-through completes (actionFrame >= cancelWindowStart)

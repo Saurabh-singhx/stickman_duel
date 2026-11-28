@@ -6,6 +6,7 @@ import { BALANCE } from './data/balance';
 import { FINISHERS } from './data/finishers';
 import { PLAYER_SPECIALS } from './data/specials';
 import type { StageId } from './data/stages';
+import { AnimationLab, type LabBridgeApi } from './debug/AnimationLab';
 import { DebugOverlay } from './debug/DebugOverlay';
 import { FrameStepController } from './debug/FrameStep';
 import { InputMapper } from './input/InputMapper';
@@ -59,6 +60,8 @@ interface DuskbladeDebugApi {
   toggleFrameStep(): boolean;
   stepOneFrame(): void;
   testSceneSwitches(count: number): { active: number; disposed: number };
+  openLab(): void;
+  lab?: LabBridgeApi;
 }
 
 declare global {
@@ -482,8 +485,37 @@ async function bootstrap(): Promise<void> {
     if (document.hidden) input.touch.onPause();
   });
 
+  const urlParams = new URLSearchParams(window.location.search);
+  const isLabMode = urlParams.get('lab') === '1' || urlParams.get('lab') === 'true';
+  const labHideUi = urlParams.get('hideUi') === '1';
+  let animationLab: AnimationLab | null = null;
+
+  const ensureLab = (): AnimationLab => {
+    if (!animationLab) {
+      mode?.dispose();
+      mode = null;
+      customPreviewState = null;
+      paused = false;
+      resultsShown = false;
+      setCombatCapture(false);
+      music.stop();
+      menus.setVisible(false);
+      pauseView.setVisible(false);
+      resultsView.hide();
+      combatGuide.setVisible(false);
+      subStatusEl.style.display = 'none';
+      hud.setVisible(!labHideUi);
+      animationLab = new AnimationLab(uiRoot, renderer, hud, debugOverlay, sfx, labHideUi);
+      if (window.__DUSKBLADE__) {
+        window.__DUSKBLADE__.lab = animationLab.getBridgeApi();
+      }
+    }
+    return animationLab;
+  };
+
   // Global hotkeys (ESC pause, F1 debug overlay, F2/F3 frame step, F4/F5 training dummy)
   window.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (animationLab) return;
     if (e.code === 'Escape' && mode && !resultsShown) {
       if (e.repeat || paused) return;
       // The browser releases pointer lock on Escape; pointerlockchange pauses once.
@@ -518,8 +550,8 @@ async function bootstrap(): Promise<void> {
 
   // Expose deterministic test/inspection hook for automated Playwright tests
   window.__DUSKBLADE__ = {
-    getState: () => customPreviewState ?? mode?.getState() ?? menuDemoState,
-    getHash: () => hashState(customPreviewState ?? mode?.getState() ?? menuDemoState),
+    getState: () => animationLab?.getCurrentState() ?? customPreviewState ?? mode?.getState() ?? menuDemoState,
+    getHash: () => hashState(animationLab?.getCurrentState() ?? customPreviewState ?? mode?.getState() ?? menuDemoState),
     getSceneMetrics: () => ({
       active: renderer.activeSceneContainers,
       disposed: renderer.totalDisposedScenes,
@@ -552,7 +584,14 @@ async function bootstrap(): Promise<void> {
         disposed: renderer.totalDisposedScenes,
       };
     },
+    openLab: () => {
+      ensureLab();
+    },
   };
+
+  if (isLabMode) {
+    ensureLab();
+  }
 
   // Fixed 60 Hz simulation accumulator + interpolated rendering loop
   const STEP_MS = 1000 / BALANCE.TICK_RATE;
@@ -566,6 +605,12 @@ async function bootstrap(): Promise<void> {
     const dt = Math.min(100, now - lastTime);
     lastTime = now;
     const renderOpts = toRenderOptions(settings);
+
+    if (animationLab) {
+      animationLab.tick(dt);
+      requestAnimationFrame(loop);
+      return;
+    }
 
     if (customPreviewState) {
       renderer.render(customPreviewState, customPreviewState, 1, renderOpts);
@@ -607,7 +652,11 @@ async function bootstrap(): Promise<void> {
 
         // Adaptive music intensity based on low HP or boss fights
         const minHpRatio = Math.min(st.fighters[0].hp / st.fighters[0].maxHp, st.fighters[1].hp / st.fighters[1].maxHp);
-        const isBoss = st.fighters[1].charId === 'warden' || st.fighters[1].charId === 'vesper' || st.config.enableHazards;
+        const isBoss =
+          st.fighters[1].charId === 'warden' ||
+          st.fighters[1].charId === 'vesper' ||
+          st.fighters[1].charId === 'raijin' ||
+          st.config.enableHazards;
         music.setIntensity(isBoss ? Math.max(0.65, 1 - minHpRatio) : Math.max(0, 0.7 - minHpRatio));
 
         for (const ev of st.events) {

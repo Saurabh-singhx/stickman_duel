@@ -12,6 +12,10 @@ export function decideBoss(ctx: BehaviorContext): InputBitfield {
   if (me.charId === 'vesper' && distPx < 115 && opp.action === 'attack' && opp.currentMove === 'heavy' && roll < 35) {
     return INPUT_BITS.DODGE;
   }
+  // Raijin aggressively dashes through mid-range swings to close distance.
+  if (me.charId === 'raijin' && distPx > 95 && distPx < 175 && opp.action === 'attack' && roll < 32) {
+    return towardBit | INPUT_BITS.DODGE;
+  }
   if (me.counterWindow > 0 && distPx < 150) {
     return INPUT_BITS.HEAVY;
   }

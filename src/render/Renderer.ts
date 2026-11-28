@@ -2,6 +2,7 @@ import { Application, Container, Graphics } from 'pixi.js';
 import { BALANCE } from '../data/balance';
 import { CHARACTERS, type CharacterId } from '../data/characters';
 import { FINISHERS } from '../data/finishers';
+import { getAerialLasersLiftPx, PLAYER_SPECIALS } from '../data/specials';
 import { STAGES } from '../data/stages';
 import { fromFp, lerpFpToPx } from '../sim/Fixed';
 import type { GameState, SimEvent } from '../sim/State';
@@ -158,19 +159,31 @@ export class Renderer {
     this.finisherFx.clear();
           break;
         }
-        case 'ATTACK_START': {
+        case 'ATTACK_SWING': {
+          // Grab / Pommel Throw and light4 Finisher Thrust are straight-line strikes rather than wide arcs — skip crescent flash.
+          if (ev.move === 'grab' || ev.move === 'light4') break;
           const char = CHARACTERS[state.fighters[ev.slot].charId];
           const sx = fromFp(ev.x) + ev.facing * 26;
           const sy = fromFp(ev.y) - 66;
-          if (ev.move === 'heavy') {
-            // Blazing double-layered heavy crescent + floor dust + subtle punch-in shake
-            this.slashes.spawn(sx, sy, ev.facing, 114, 30, -1.75, 1.15, 0xffb703, 18);
-            this.slashes.spawn(sx, sy, ev.facing, 104, 14, -1.65, 1.05, 0xfff8dc, 14);
+          if (ev.move === 'heavy' || ev.move === 'unblockable') {
+            const isCrimson = ev.move === 'unblockable';
+            const mainColor = isCrimson ? 0xef4444 : 0xffb703;
+            const coreColor = isCrimson ? 0xffe4e6 : 0xfff8dc;
+            const sparkColor = isCrimson ? 0xef4444 : 0xffd54f;
+            this.slashes.spawn(sx, sy, ev.facing, 114, isCrimson ? 28 : 30, -1.75, 1.15, mainColor, 18, ev.slot);
+            this.slashes.spawn(sx, sy, ev.facing, isCrimson ? 102 : 104, isCrimson ? 12 : 14, -1.65, 1.05, coreColor, 14, ev.slot);
             this.dust.puff(fromFp(ev.x), floorY, opts.quality === 'low' ? 4 : 8, -ev.facing);
-            this.particles.burstSparks(sx + ev.facing * 35, sy - 20, opts.quality === 'low' ? 5 : 12, 0xffd54f, 8, 14);
-            this.camera.addShake(0.18, opts.screenShake);
+            this.particles.burstSparks(
+              sx + ev.facing * (isCrimson ? 32 : 35),
+              sy - (isCrimson ? 10 : 20),
+              opts.quality === 'low' ? (isCrimson ? 6 : 5) : isCrimson ? 14 : 12,
+              sparkColor,
+              isCrimson ? 9 : 8,
+              14,
+            );
+            this.camera.addShake(isCrimson ? 0.22 : 0.18, opts.screenShake);
           } else {
-            const isBig = ev.move === 'unblockable' || ev.move === 'counter' || ev.move === 'light4';
+            const isBig = ev.move === 'counter';
             const startAng = ev.move === 'light2' ? 1.35 : ev.move === 'light3' ? -2.1 : -1.35;
             const endAng = ev.move === 'light2' ? -1.35 : ev.move === 'light3' ? 0.85 : 0.95;
             this.slashes.spawn(
@@ -181,8 +194,9 @@ export class Renderer {
               isBig ? 22 : 13,
               startAng,
               endAng,
-              ev.move === 'counter' ? 0xffe478 : ev.move === 'unblockable' ? 0xff3b3b : char.slashColor,
+              ev.move === 'counter' ? 0xffe478 : char.slashColor,
               isBig ? 18 : 14,
+              ev.slot,
             );
           }
           break;
@@ -211,13 +225,19 @@ export class Renderer {
         case 'PARRY': {
           const x = fromFp(ev.x);
           const y = fromFp(ev.y);
+          // Immediately cancel any swing crescent belonging to the parried attacker
+          this.slashes.cancelOwner(ev.attacker);
           this.fighterViews[ev.parrier].triggerParry();
           const dir = state.fighters[ev.parrier].facing;
-          this.particles.burstSparks(x, y, opts.quality === 'low' ? 12 : 24, 0xfff099, 11, 16);
-          this.slashes.spawn(x, y, dir, 48, 9, -1.8, 0.3, 0xfff5d6, 10);
-          this.particles.spawnRing(x, y, 58, 0xffe066, 12);
-          this.camera.addShake(0.42, opts.screenShake);
-          this.camera.triggerFlash(0xfff5cc, 0.18, opts.reduceFlashing);
+          const sparkCount = opts.quality === 'low' ? 18 : 36;
+          this.particles.burstSparks(x, y, sparkCount, 0xffe066, 13, 20);
+          this.particles.burstSparks(x, y, Math.ceil(sparkCount * 0.45), 0xffffff, 10, 14);
+          this.slashes.spawn(x, y, dir, 70, 15, -2.05, 0.55, 0xffd54f, 14);
+          this.slashes.spawn(x, y, (-dir as 1 | -1), 56, 10, -1.35, 0.95, 0xffffff, 11);
+          this.particles.spawnRing(x, y, 124, 0xffd54f, 17);
+          this.particles.spawnRing(x, y, 74, 0xffffff, 12);
+          this.camera.addShake(0.45, opts.screenShake);
+          this.camera.triggerFlash(0xfff4b8, 0.28, opts.reduceFlashing);
           break;
         }
         case 'GUARD_BREAK': {
@@ -268,6 +288,12 @@ export class Renderer {
           } else if (fSpec.theme === 'spin' || fSpec.theme === 'deathblow') {
             this.slashes.spawn(x, y, atk.facing, 115, 20, -1.4 + ev.beatIndex * 0.5, 1.2, fSpec.slashColor, 16);
             this.particles.burstSparks(x, y, low ? 8 : 16, fSpec.slashColor, 11, 18);
+          } else if (fSpec.theme === 'rising') {
+            this.particles.burstSparks(fromFp(atk.x), floorY - 24, low ? 6 : 12, fSpec.slashColor, 9, 14);
+          } else if (fSpec.theme === 'overhead') {
+            this.particles.burstSparks(fromFp(atk.x), fromFp(atk.y) - 60, low ? 6 : 12, fSpec.slashColor, 10, 16);
+          } else if (fSpec.theme === 'eclipse') {
+            this.particles.spawnRing(fromFp(atk.x), floorY - 56, 70, fSpec.slashColor, 14);
           }
           break;
         }
@@ -281,17 +307,41 @@ export class Renderer {
           if (fSpec.theme === 'thunder_storm') {
             this.finisherFx.triggerLightning(x, low);
             this.finisherFx.spawnCutLine(x, y, -0.18, 290, 0xfef08a, 44);
+          } else if (fSpec.theme === 'rising') {
+            this.finisherFx.spawnCutLine(x - atk.facing * 12, floorY - 125, -1.38, 220, fSpec.slashColor, 34);
+          } else if (fSpec.theme === 'overhead') {
+            this.finisherFx.spawnCutLine(x - atk.facing * 14, floorY - 110, Math.PI / 2, 180, fSpec.slashColor, 32);
+            this.shards.burst(x, floorY - 16, low ? 8 : 20, 0x57534e, 12);
+          } else if (fSpec.theme === 'spin') {
+            for (let k = 0; k < (low ? 2 : 4); k += 1) {
+              this.finisherFx.spawnCutLine(x, y, k * 0.78, 175, fSpec.slashColor, 30);
+            }
           } else if (fSpec.theme === 'eclipse') {
-            this.finisherFx.spawnCutLine(x, y, 0, 560, 0xfff8dc, 38);
+            this.finisherFx.spawnCutLine(x, y, 0, 640, 0xfff8dc, 40);
           } else if (fSpec.theme === 'deathblow') {
             this.finisherFx.spawnCutLine(x, y, -0.75, 175, 0xef4444, 34);
             this.finisherFx.spawnCutLine(x, y, 0.75, 175, 0xffd54f, 34);
           } else if (fSpec.theme === 'judgment') {
+            for (let k = 0; k < (low ? 4 : 8); k += 1) {
+              this.finisherFx.spawnCutLine(x, y, k * 0.42, 210, 0x93c5fd, 36);
+            }
+            this.shards.burst(x, y, low ? 8 : 18, 0x93c5fd, 13);
+          } else if (fSpec.theme === 'flurry') {
             for (let k = 0; k < (low ? 3 : 6); k += 1) {
-              this.finisherFx.spawnCutLine(x, y, k * 0.55, 190, 0x93c5fd, 34);
+              this.finisherFx.spawnCutLine(x, y, -1.2 + k * 0.55, 220, fSpec.slashColor, 32);
             }
           }
-          this.slashes.spawn(x, y, atk.facing, 165, 36, -1.65, 1.35, fSpec.slashColor, 28);
+          if (fSpec.theme === 'rising') {
+            this.slashes.spawn(fromFp(atk.x) + atk.facing * 24, floorY - 76, atk.facing, 155, 34, 1.45, -1.55, fSpec.slashColor, 26);
+          } else if (fSpec.theme === 'overhead') {
+            this.slashes.spawn(fromFp(atk.x) + atk.facing * 24, floorY - 68, atk.facing, 160, 38, -2.35, 1.45, fSpec.slashColor, 28);
+          } else if (fSpec.theme === 'spin') {
+            this.slashes.spawn(x, y, atk.facing, 155, 30, -2.8, 2.8, fSpec.slashColor, 26);
+          } else if (fSpec.theme === 'eclipse') {
+            this.slashes.spawn(x, y, atk.facing, 210, 22, -0.15, 0.15, 0xfff8dc, 24);
+          } else {
+            this.slashes.spawn(x, y, atk.facing, 165, 36, -1.65, 1.35, fSpec.slashColor, 28);
+          }
           this.particles.burstSparks(x, y, low ? 18 : 44, 0xffe478, 15, 28);
           this.particles.spawnRing(x, y, 195, fSpec.slashColor, 28);
           this.shards.burst(x, y, low ? 10 : 26, vicSpec.capeColor, 11);
@@ -309,16 +359,29 @@ export class Renderer {
           this.camera.addShake(0.42, opts.screenShake);
           break;
         }
+        case 'PLAYER_SPECIAL_BEAT': {
+          const x = fromFp(ev.x);
+          const y = fromFp(ev.y) - 52;
+          const spColor = PLAYER_SPECIALS[ev.specialId].color;
+          const low = opts.quality === 'low';
+          if (ev.specialId === 'aerial_lasers') {
+            this.particles.burstSparks(x, y, low ? 8 : 18, spColor, 11, 18);
+            this.particles.spawnRing(x, y, 88, spColor, 16);
+            this.camera.addShake(0.24, opts.screenShake);
+          }
+          break;
+        }
         case 'PLAYER_SPECIAL_IMPACT': {
           const x = fromFp(ev.x);
           const y = fromFp(ev.y) - 56;
+          const spColor = PLAYER_SPECIALS[ev.specialId].color;
           const low = opts.quality === 'low';
-          this.particles.burstSparks(x, y, low ? 16 : 40, 0xffe066, 14, 26);
-          this.particles.spawnRing(x, y, 180, 0xffd54f, 26);
+          this.particles.burstSparks(x, y, low ? 16 : 40, spColor, 14, 26);
+          this.particles.spawnRing(x, y, 180, spColor, 26);
           this.cracks.spawn(x, floorY, 1.55, 380);
           this.dust.puff(x, floorY, low ? 6 : 14, 0);
           this.camera.addShake(0.75, opts.screenShake);
-          this.camera.triggerFlash(0xfff8dc, 0.42, opts.reduceFlashing);
+          this.camera.triggerFlash(ev.specialId === 'aerial_lasers' ? 0xfecaca : 0xfff8dc, 0.42, opts.reduceFlashing);
           break;
         }
         case 'BOSS_SPECIAL_ACTIVE': {
@@ -361,7 +424,7 @@ export class Renderer {
     const p2x = lerpFpToPx(prevState.fighters[1].x, currState.fighters[1].x, alpha);
     let p2y = lerpFpToPx(prevState.fighters[1].y, currState.fighters[1].y, alpha);
     if (currState.activeSpecial?.specialId === 'aerial_lasers') {
-      const lift = Math.min(1, currState.activeSpecial.frame / 18, (145 - currState.activeSpecial.frame) / 18) * 195;
+      const lift = getAerialLasersLiftPx(currState.activeSpecial.frame);
       if (currState.activeSpecial.attacker === 0) p1y -= lift;
       else p2y -= lift;
     }
@@ -406,7 +469,31 @@ export class Renderer {
 
     this.hazardsGfx.clear();
     this.stageView.drawHazards(this.hazardsGfx, currState.hazards, opts.colorblindTelegraph);
-    this.specialFx.drawBossSpecials(this.hazardsGfx, currState.bossSpecials, opts.colorblindTelegraph, opts.quality === 'low');
+    this.specialFx.drawBossSpecials(
+      this.hazardsGfx,
+      currState.bossSpecials,
+      opts.colorblindTelegraph,
+      opts.quality === 'low',
+      currState.fighters,
+    );
+
+    const basePoseCtx = currState.activeSpecial
+      ? { specialId: currState.activeSpecial.specialId, specialFrame: currState.activeSpecial.frame }
+      : currState.phase === 'finisher' && currState.activeFinisherId
+        ? { finisherId: currState.activeFinisherId, finisherFrame: currState.phaseFrame }
+        : undefined;
+
+    const getPoseCtx = (slot: 0 | 1) => {
+      if (basePoseCtx) return basePoseCtx;
+      const bossSp = currState.bossSpecials.find((bs) => bs.ownerSlot === slot);
+      if (!bossSp) return undefined;
+      return {
+        bossSpecialId: bossSp.specialId,
+        bossSpecialPhase: bossSp.phase,
+        bossSpecialFrame: bossSp.frame,
+        bossSpecialDuration: bossSp.phase === 'telegraph' ? bossSp.telegraphFrames : bossSp.activeFrames,
+      };
+    };
 
     this.fightersGfx.clear();
     this.fighterViews[0].draw(
@@ -417,6 +504,7 @@ export class Renderer {
       opts.glowEnabled,
       opts.colorblindTelegraph,
       dtScale,
+      getPoseCtx(0),
     );
     this.fighterViews[1].draw(
       this.fightersGfx,
@@ -426,7 +514,12 @@ export class Renderer {
       opts.glowEnabled,
       opts.colorblindTelegraph,
       dtScale,
+      getPoseCtx(1),
     );
+
+    const attackerHand = currState.activeSpecial
+      ? this.fighterViews[currState.activeSpecial.attacker].getLastFrontHand()
+      : undefined;
 
     this.fxGfx.clear();
     this.dust.updateAndDraw(this.fxGfx, dtScale);
@@ -435,7 +528,7 @@ export class Renderer {
     this.particles.updateAndDraw(this.fxGfx, dtScale);
     this.finisherFx.drawChoreography(this.fxGfx, currState, opts.quality === 'low');
     this.finisherFx.drawForegroundFx(this.fxGfx, dtScale);
-    this.specialFx.drawPlayerSpecialForeground(this.fxGfx, currState, opts.quality === 'low');
+    this.specialFx.drawPlayerSpecialForeground(this.fxGfx, currState, opts.quality === 'low', attackerHand);
     this.debugGfx?.clear();
 
     this.flashGfx.clear();

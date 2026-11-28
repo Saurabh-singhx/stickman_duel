@@ -72,8 +72,8 @@ export function saveProgress(progress: PlayerProgress): void {
   saveVersioned(PROGRESS_KEY, progress);
 }
 
-/** All distinct boss characters, including the original daily roster. */
-export const DAILY_BOSSES = ['vesper', 'swordsman', 'brawler', 'assassin', 'warden'] as const;
+/** All distinct boss characters, including the daily boss roster. */
+export const DAILY_BOSSES = ['vesper', 'raijin', 'swordsman', 'brawler', 'assassin', 'warden'] as const;
 export type DailyBossId = typeof DAILY_BOSSES[number];
 
 /** Claim the day's non-blocking invitation once, including across reloads. */

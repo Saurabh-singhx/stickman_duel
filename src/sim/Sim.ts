@@ -21,6 +21,59 @@ import {
   type SimEvent,
 } from './State';
 
+function orientFinisherPair(
+  atk: FighterState,
+  vic: FighterState,
+): { atk: FighterState; vic: FighterState } {
+  const floorY = BALANCE.FLOOR_Y_PX * BALANCE.FP_SCALE;
+  const minX = (BALANCE.STAGE_LEFT_PX + 24) * BALANCE.FP_SCALE;
+  const maxX = (BALANCE.STAGE_RIGHT_PX - 24) * BALANCE.FP_SCALE;
+  const atkFacing: 1 | -1 = atk.x < vic.x ? 1 : atk.x > vic.x ? -1 : atk.facing;
+  const vicFacing: 1 | -1 = atkFacing === 1 ? -1 : 1;
+
+  // Ensure a clean minimum melee gap so overlapping/too-close fighters never cross or tangle
+  const minGap = 96_000;
+  let atkX = atk.x;
+  let vicX = vic.x;
+  if (absInt(vicX - atkX) < minGap) {
+    const desiredAtkX = vicX - atkFacing * minGap;
+    if (desiredAtkX >= minX && desiredAtkX <= maxX) {
+      atkX = desiredAtkX;
+    } else {
+      vicX = clampInt(atkX + atkFacing * minGap, minX, maxX);
+      atkX = clampInt(vicX - atkFacing * minGap, minX, maxX);
+    }
+  }
+
+  return {
+    atk: {
+      ...atk,
+      x: atkX,
+      y: floorY,
+      vx: 0,
+      vy: 0,
+      grounded: true,
+      facing: atkFacing,
+      action: 'finisher_atk',
+      actionFrame: 0,
+      currentMove: null,
+    },
+    vic: {
+      ...vic,
+      x: vicX,
+      y: floorY,
+      vx: 0,
+      vy: 0,
+      grounded: true,
+      hp: 0,
+      facing: vicFacing,
+      action: 'finisher_vic',
+      actionFrame: 0,
+      currentMove: null,
+    },
+  };
+}
+
 function createEmptyStats(): FighterStats {
   return {
     damageDealt: 0,
@@ -139,6 +192,49 @@ export function step(
     let f1 = { ...state.fighters[1], actionFrame: state.fighters[1].actionFrame + 1 };
     const stats: [FighterStats, FighterStats] = [{ ...state.stats[0] }, { ...state.stats[1] }];
 
+    const floorY = BALANCE.FLOOR_Y_PX * BALANCE.FP_SCALE;
+    const minX = (BALANCE.STAGE_LEFT_PX + 24) * BALANCE.FP_SCALE;
+    const maxX = (BALANCE.STAGE_RIGHT_PX - 24) * BALANCE.FP_SCALE;
+
+    // Empty-Hand Breaker: attacker leaps to enemy (f 28..56) and launches enemy across arena (f 56..94)
+    if (sp.specialId === 'unarmed_launch') {
+      const atk = atkSlot === 0 ? f0 : f1;
+      const vic = vicSlot === 0 ? f0 : f1;
+      const originX = sp.originX ?? atk.x;
+      const targetStartX = sp.targetX ?? vic.x;
+      const strikeX = clampInt(targetStartX - atk.facing * 54_000, minX, maxX);
+      const launchedX = atk.facing === 1 ? maxX : minX;
+
+      let nextAtk = atk;
+      let nextVic = vic;
+      if (nextSpFrame >= 28 && nextSpFrame <= spec.impactFrame) {
+        const u = (nextSpFrame - 28) / (spec.impactFrame - 28);
+        const ax = Math.round(originX + (strikeX - originX) * u);
+        const ay = floorY - Math.round(Math.sin(Math.PI * u) * 125_000);
+        nextAtk = { ...atk, x: ax, y: ay, grounded: nextSpFrame === spec.impactFrame };
+      } else if (nextSpFrame > spec.impactFrame) {
+        nextAtk = { ...atk, x: strikeX, y: floorY, grounded: true };
+      }
+
+      if (nextSpFrame > spec.impactFrame && nextSpFrame <= 94) {
+        const u = (nextSpFrame - spec.impactFrame) / (94 - spec.impactFrame);
+        const easeOut = 1 - (1 - u) * (1 - u);
+        const vx = Math.round(targetStartX + (launchedX - targetStartX) * easeOut);
+        const vy = floorY - Math.round(Math.sin(Math.PI * u) * 115_000);
+        nextVic = { ...vic, x: vx, y: vy, grounded: nextSpFrame === 94 };
+      } else if (nextSpFrame > 94) {
+        nextVic = { ...vic, x: launchedX, y: floorY, grounded: true, vx: 0 };
+      }
+
+      if (atkSlot === 0) {
+        f0 = nextAtk;
+        f1 = nextVic;
+      } else {
+        f1 = nextAtk;
+        f0 = nextVic;
+      }
+    }
+
     const beatIndex = spec.beatFrames.indexOf(nextSpFrame);
     if (beatIndex !== -1) {
       const vic = vicSlot === 0 ? f0 : f1;
@@ -164,14 +260,9 @@ export function step(
         damageDealt: stats[atkSlot].damageDealt + spec.damage,
         hitsLanded: stats[atkSlot].hitsLanded + 1,
       };
-      // Unarmed Launch throws the enemy all the way to the far wall of the arena (clamped safely)
-      const minX = (BALANCE.STAGE_LEFT_PX + 24) * BALANCE.FP_SCALE;
-      const maxX = (BALANCE.STAGE_RIGHT_PX - 24) * BALANCE.FP_SCALE;
-      const launchedX = spec.launchToEdge ? (atk.facing === 1 ? maxX : minX) : vic.x;
       const updatedVic: FighterState = {
         ...vic,
         hp: nextHp,
-        x: launchedX,
         vx: spec.launchToEdge ? atk.facing * 6_000 : 0,
       };
       if (vicSlot === 0) f0 = updatedVic;
@@ -202,6 +293,7 @@ export function step(
           x: vic.x,
           y: vic.y,
         });
+        const pair = orientFinisherPair(atkSlot === 0 ? f0 : f1, atkSlot === 0 ? f1 : f0);
         return {
           ...state,
           frame: nextFrame,
@@ -209,10 +301,7 @@ export function step(
           phaseFrame: 0,
           hitstopFrames: BALANCE.KO_HITSTOP_FRAMES,
           rngState: finRoll.nextState,
-          fighters: [
-            atkSlot === 0 ? { ...f0, action: 'finisher_atk', actionFrame: 0, vx: 0 } : { ...f0, hp: 0, action: 'finisher_vic', actionFrame: 0, vx: 0 },
-            atkSlot === 1 ? { ...f1, action: 'finisher_atk', actionFrame: 0, vx: 0 } : { ...f1, hp: 0, action: 'finisher_vic', actionFrame: 0, vx: 0 },
-          ],
+          fighters: atkSlot === 0 ? [pair.atk, pair.vic] : [pair.vic, pair.atk],
           stats,
           bossSpecials: [],
           activeSpecial: null,
@@ -260,8 +349,191 @@ export function step(
     const nextPhaseFrame = state.phaseFrame + 1;
     const atkSlot = state.finisherAttacker;
     const vicSlot: FighterSlot = atkSlot === 0 ? 1 : 0;
-    const f0 = { ...state.fighters[0], actionFrame: state.fighters[0].actionFrame + 1 };
-    const f1 = { ...state.fighters[1], actionFrame: state.fighters[1].actionFrame + 1 };
+    let f0 = { ...state.fighters[0], actionFrame: state.fighters[0].actionFrame + 1 };
+    let f1 = { ...state.fighters[1], actionFrame: state.fighters[1].actionFrame + 1 };
+
+    // Keep finisher pair facing each other and dash into melee execution range if triggered from afar
+    const rawAtk = atkSlot === 0 ? f0 : f1;
+    const rawVic = vicSlot === 0 ? f0 : f1;
+    const finId = state.activeFinisherId;
+    const lockEclipseFacing = finId === 'eclipse_iaijutsu' && nextPhaseFrame >= 38;
+    const atkFacing: 1 | -1 = lockEclipseFacing
+      ? rawAtk.facing
+      : rawAtk.x < rawVic.x
+        ? 1
+        : rawAtk.x > rawVic.x
+          ? -1
+          : rawAtk.facing;
+    const vicFacing: 1 | -1 = lockEclipseFacing ? rawVic.facing : atkFacing === 1 ? -1 : 1;
+    const floorY = BALANCE.FLOOR_Y_PX * BALANCE.FP_SCALE;
+    const minX = (BALANCE.STAGE_LEFT_PX + 24) * BALANCE.FP_SCALE;
+    const maxX = (BALANCE.STAGE_RIGHT_PX - 24) * BALANCE.FP_SCALE;
+    const idealAtkX = clampInt(rawVic.x - atkFacing * 104_000, minX, maxX);
+    const gap = absInt(rawVic.x - rawAtk.x);
+    let nextAtkX = rawAtk.x;
+    if (!lockEclipseFacing && finId !== 'phantom_flurry') {
+      if (gap > 114_000 && nextPhaseFrame <= 16) {
+        const rem = Math.max(1, 17 - nextPhaseFrame);
+        nextAtkX = rawAtk.x + Math.round((idealAtkX - rawAtk.x) / rem);
+      } else if (gap < 92_000 && finId !== 'tempest_thunder' && finId !== 'sepulcher_split') {
+        nextAtkX = clampInt(rawVic.x - atkFacing * 96_000, minX, maxX);
+      }
+    }
+    if (atkSlot === 0) {
+      f0 = { ...f0, x: nextAtkX, facing: atkFacing };
+      f1 = { ...f1, facing: vicFacing };
+    } else {
+      f1 = { ...f1, x: nextAtkX, facing: atkFacing };
+      f0 = { ...f0, facing: vicFacing };
+    }
+
+    // Bespoke spatial choreography per finisher
+    let atk = atkSlot === 0 ? f0 : f1;
+    let vic = vicSlot === 0 ? f0 : f1;
+
+    if (finId === 'rising_slash') {
+      // Heavenward Sever (DMC High Time): rising uppercut leap + skyward victim launch
+      if (nextPhaseFrame >= 24 && nextPhaseFrame <= 48) {
+        const u = (nextPhaseFrame - 24) / 24;
+        atk = {
+          ...atk,
+          y: floorY - Math.round(Math.sin(Math.PI * u) * 78_000),
+          grounded: nextPhaseFrame === 48,
+        };
+      } else {
+        atk = { ...atk, y: floorY, grounded: true };
+      }
+
+      if (nextPhaseFrame >= spec.impactFrame && nextPhaseFrame <= 58) {
+        const u = (nextPhaseFrame - spec.impactFrame) / (58 - spec.impactFrame);
+        const vy = floorY - Math.round(Math.sin(Math.PI * u) * 175_000);
+        const drift = nextPhaseFrame === spec.impactFrame ? atk.facing * 1_500 : 0;
+        vic = {
+          ...vic,
+          x: clampInt(vic.x + drift, minX, maxX),
+          y: vy,
+          grounded: nextPhaseFrame === 58,
+        };
+      } else {
+        vic = { ...vic, y: floorY, grounded: true };
+      }
+    } else if (finId === 'spin_cut') {
+      // Crescent Tempest: whirling aerial spiral close to the victim
+      if (nextPhaseFrame >= 12 && nextPhaseFrame <= 48) {
+        const u = (nextPhaseFrame - 12) / 36;
+        atk = {
+          ...atk,
+          y: floorY - Math.round(Math.sin(Math.PI * u) * 56_000),
+          grounded: nextPhaseFrame === 48,
+        };
+      } else {
+        atk = { ...atk, y: floorY, grounded: true };
+      }
+    } else if (finId === 'overhead_slam') {
+      // Sundered Earth (Elden Ring Lion Claw): high somersault vault slamming into the ground
+      if (nextPhaseFrame >= 10 && nextPhaseFrame <= 38) {
+        const u = (nextPhaseFrame - 10) / 28;
+        atk = {
+          ...atk,
+          y: floorY - Math.round(Math.sin(Math.PI * u) * 145_000),
+          grounded: nextPhaseFrame === 38,
+        };
+      } else {
+        atk = { ...atk, y: floorY, grounded: true };
+      }
+    } else if (finId === 'shinobi_deathblow') {
+      // Crimson Deathblow: tight step-in + short lethal plunge over kneeling victim
+      if (nextPhaseFrame >= 24 && nextPhaseFrame <= 44) {
+        const u = (nextPhaseFrame - 24) / 20;
+        atk = {
+          ...atk,
+          y: floorY - Math.round(Math.sin(Math.PI * u) * 34_000),
+          grounded: nextPhaseFrame === 44,
+        };
+      } else {
+        atk = { ...atk, y: floorY, grounded: true };
+      }
+    } else if (finId === 'eclipse_iaijutsu') {
+      // Eclipse Iaijutsu: supersonic iai dash straight through victim to the far side
+      if (nextPhaseFrame >= 38 && nextPhaseFrame <= 44) {
+        const startX = clampInt(vic.x - atkFacing * 104_000, minX, maxX);
+        const endX = clampInt(vic.x + atkFacing * 124_000, minX, maxX);
+        const u = (nextPhaseFrame - 38) / 6;
+        atk = {
+          ...atk,
+          x: Math.round(startX + (endX - startX) * u),
+          facing: atkFacing,
+        };
+      }
+    } else if (finId === 'phantom_flurry') {
+      // Phantom Flurry: rapid multi-angle teleports around the victim before final front cleave
+      const phaseSlot =
+        nextPhaseFrame < 12
+          ? { dx: -102_000, dy: 0 }
+          : nextPhaseFrame < 20
+            ? { dx: 102_000, dy: 0 }
+            : nextPhaseFrame < 28
+              ? { dx: -86_000, dy: 68_000 }
+              : nextPhaseFrame < 36
+                ? { dx: 86_000, dy: 68_000 }
+                : nextPhaseFrame < 44
+                  ? { dx: 98_000, dy: 0 }
+                  : { dx: -106_000, dy: 0 };
+      const px = clampInt(vic.x + phaseSlot.dx, minX, maxX);
+      const pFace: 1 | -1 = px <= vic.x ? 1 : -1;
+      atk = {
+        ...atk,
+        x: px,
+        y: floorY - phaseSlot.dy,
+        grounded: phaseSlot.dy === 0,
+        facing: pFace,
+      };
+      // Victim briefly juggled mid-flurry before impact slam @ f56
+      if (nextPhaseFrame >= 20 && nextPhaseFrame <= spec.impactFrame) {
+        const jU = (nextPhaseFrame - 20) / (spec.impactFrame - 20);
+        vic = {
+          ...vic,
+          y: floorY - Math.round(Math.sin(Math.PI * jU) * 28_000),
+          grounded: nextPhaseFrame === spec.impactFrame,
+        };
+      } else {
+        vic = { ...vic, y: floorY, grounded: true };
+      }
+    } else if (finId === 'sepulcher_split') {
+      // Step cleanly outside the left monolith while summoning, then lunge in for the split
+      const targetSep = nextPhaseFrame < 38 ? 148_000 : 112_000;
+      const desiredAtkX = clampInt(vic.x - atkFacing * targetSep, minX, maxX);
+      const stepRate = nextPhaseFrame < 38 ? 0.28 : 0.35;
+      atk = {
+        ...atk,
+        x: Math.round(atk.x + (desiredAtkX - atk.x) * stepRate),
+      };
+    } else if (finId === 'tempest_thunder') {
+      // Slow-motion storm duel footwork: exchange pressure -> brief pushback -> decisive lunge @ f315
+      const duelGap =
+        nextPhaseFrame < 95
+          ? 96_000
+          : nextPhaseFrame < 160
+            ? 84_000
+            : nextPhaseFrame < 225
+              ? 94_000
+              : nextPhaseFrame < 305
+                ? 112_000
+                : 82_000;
+      const desiredAtkX = clampInt(vic.x - atkFacing * duelGap, minX, maxX);
+      atk = {
+        ...atk,
+        x: Math.round(atk.x + (desiredAtkX - atk.x) * 0.22),
+      };
+    }
+
+    if (atkSlot === 0) {
+      f0 = atk;
+      f1 = vic;
+    } else {
+      f1 = atk;
+      f0 = vic;
+    }
 
     const beatIndex = spec.beatFrames.indexOf(nextPhaseFrame);
     if (beatIndex !== -1) {
@@ -709,6 +981,8 @@ export function step(
         victim: vicSlot,
         specialId,
         frame: 0,
+        originX: triggeredSpecialAttacker === 0 ? f0.x : f1.x,
+        targetX: vic.x,
       },
       events,
     };
@@ -764,6 +1038,10 @@ export function step(
     const applySlabTo = (fighter: FighterState): FighterState => {
       const bit = 1 << fighter.slot;
       if ((hitMask & bit) !== 0) return fighter;
+      // Rising coffin hazards should not damage bosses or boss-slot encounters
+      if (CHARACTERS[fighter.charId].isBoss || fighter.slot === state.config.hazardImmuneSlot) {
+        return fighter;
+      }
       if (isDodgeInvincible(fighter) || isWakeupInvincible(fighter)) return fighter;
       if (!rectsOverlap(sBox, getHurtbox(fighter))) return fighter;
       hitMask |= bit;
@@ -823,14 +1101,10 @@ export function step(
         x: vic.x,
         y: vic.y,
       });
-      const nextF0: FighterState =
-        finisherTrigger === 0
-          ? { ...f0, action: 'finisher_atk', actionFrame: 0, currentMove: null, vx: 0 }
-          : { ...f0, hp: 0, action: 'finisher_vic', actionFrame: 0, currentMove: null, vx: 0 };
-      const nextF1: FighterState =
-        finisherTrigger === 1
-          ? { ...f1, action: 'finisher_atk', actionFrame: 0, currentMove: null, vx: 0 }
-          : { ...f1, hp: 0, action: 'finisher_vic', actionFrame: 0, currentMove: null, vx: 0 };
+      const pair = orientFinisherPair(
+        finisherTrigger === 0 ? f0 : f1,
+        finisherTrigger === 0 ? f1 : f0,
+      );
       return {
         ...state,
         frame: nextFrame,
@@ -838,7 +1112,7 @@ export function step(
         phaseFrame: 0,
         hitstopFrames: BALANCE.KO_HITSTOP_FRAMES,
         rngState: finRoll.nextState,
-        fighters: [nextF0, nextF1],
+        fighters: finisherTrigger === 0 ? [pair.atk, pair.vic] : [pair.vic, pair.atk],
         stats,
         hazards: updatedHazards,
         hazardTimer: hazardStep.hazardTimer,

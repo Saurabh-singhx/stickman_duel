@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../../src/data/balance';
 import { FINISHER_IDS, FINISHERS, selectRandomFinisherId } from '../../src/data/finishers';
+import { MOVES } from '../../src/data/moves';
 import { BOSS_SPECIALS_BY_CHAR, PLAYER_SPECIAL_DAMAGE, PLAYER_SPECIAL_IDS } from '../../src/data/specials';
+import { getBossSpecialHitboxes, spawnBossSpecialById, stepBossSpecials } from '../../src/sim/BossSpecials';
+import { getHurtbox, rectsOverlap } from '../../src/sim/Collision';
 import { isDodgeInvincible } from '../../src/sim/Fighter';
 import { createInitialState, step } from '../../src/sim/Sim';
 import { INPUT_BITS, type GameState, type MatchConfig } from '../../src/sim/State';
@@ -322,8 +325,23 @@ describe('Combat Rules & Frame Data', () => {
     expect(s.fighters[1].hp).toBe(100);
   });
 
-  it('gives all 4 bosses 4 arena/half-arena special attacks that spawn and activate deterministically', () => {
-    for (const id of ['swordsman', 'brawler', 'assassin', 'warden'] as const) {
+  it('stops an enemy mid-attack/walk as soon as the player starts a special (E)', () => {
+    let s = makeFightingState();
+    s = {
+      ...s,
+      fighters: [{ ...s.fighters[0], specialMeter: 100 }, s.fighters[1]],
+    };
+    // P2 starts a heavy swing on frame 0; P1 activates special on frame 1
+    s = step(s, [0, INPUT_BITS.HEAVY]);
+    expect(s.fighters[1].action).toBe('attack');
+    s = step(s, [INPUT_BITS.SPECIAL, 0]);
+    expect(s.fighters[0].action).toBe('special_startup');
+    expect(s.fighters[1].action).toBe('idle');
+    expect(s.fighters[1].currentMove).toBeNull();
+  });
+
+  it('gives all bosses 4 arena/half-arena special attacks that spawn and activate deterministically', () => {
+    for (const id of ['swordsman', 'brawler', 'assassin', 'warden', 'vesper', 'raijin'] as const) {
       expect(BOSS_SPECIALS_BY_CHAR[id].length).toBe(4);
     }
     let s = makeFightingState({ p2Char: 'warden' });
@@ -337,5 +355,191 @@ describe('Combat Rules & Frame Data', () => {
     }
     expect(sawTelegraph).toBe(true);
     expect(sawActive).toBe(true);
+  });
+
+  it('orients and spaces fighters cleanly when a finisher starts too close or far apart', () => {
+    // 1. Too close / crossed facing when lethal hit lands -> faces each other with >= 90px gap
+    let close = makeFightingState();
+    close = {
+      ...close,
+      fighters: [
+        { ...close.fighters[0], x: 620_000, facing: -1 },
+        { ...close.fighters[1], x: 605_000, facing: -1, hp: 10, guard: 0, action: 'guard_break', stunFrames: 40 },
+      ],
+    };
+    close = step(close, [INPUT_BITS.GRAB, 0]);
+    expect(close.phase).toBe('finisher');
+    expect(close.fighters[0].facing).toBe(-1);
+    expect(close.fighters[1].facing).toBe(1);
+    expect(Math.abs(close.fighters[1].x - close.fighters[0].x)).toBeGreaterThanOrEqual(92_000);
+
+    // 2. Far apart -> finisher closes in to strike range cleanly over the opening frames
+    let far = makeFightingState();
+    far = {
+      ...far,
+      phase: 'finisher',
+      phaseFrame: 0,
+      activeFinisherId: 'low_lunge',
+      finisherAttacker: 0,
+      fighters: [
+        { ...far.fighters[0], x: 200_000, facing: 1, action: 'finisher_atk' },
+        { ...far.fighters[1], x: 1_040_000, facing: -1, hp: 0, action: 'finisher_vic' },
+      ],
+    };
+    for (let i = 0; i < 18; i += 1) {
+      far = step(far, [0, 0]);
+    }
+    expect(Math.abs(far.fighters[1].x - far.fighters[0].x)).toBeLessThanOrEqual(115_000);
+    expect(far.fighters[0].facing).toBe(1);
+    expect(far.fighters[1].facing).toBe(-1);
+  });
+
+  it('emits ATTACK_SWING at move.startup rather than during windup frames', () => {
+    for (const [input, moveId] of [
+      [INPUT_BITS.LIGHT, 'light1'],
+      [INPUT_BITS.HEAVY, 'heavy'],
+      [INPUT_BITS.UNBLOCKABLE, 'unblockable'],
+    ] as const) {
+      let s = makeFightingState();
+      s = {
+        ...s,
+        fighters: [
+          { ...s.fighters[0], x: 300_000 },
+          { ...s.fighters[1], x: 900_000 },
+        ],
+      };
+      s = step(s, [input, 0]);
+      expect(s.events.some((e) => e.type === 'ATTACK_START' && e.move === moveId)).toBe(true);
+      expect(s.events.some((e) => e.type === 'ATTACK_SWING')).toBe(false);
+
+      const startup = MOVES[moveId].startup;
+      let swingFrame = -1;
+      for (let f = 1; f <= startup + 2; f += 1) {
+        s = step(s, [0, 0]);
+        if (s.events.some((e) => e.type === 'ATTACK_SWING' && e.move === moveId)) {
+          swingFrame = f;
+          break;
+        }
+      }
+      expect(swingFrame).toBe(startup);
+    }
+  });
+
+  it('prevents coffin slab hazards from damaging bosses', () => {
+    for (const bossChar of ['warden', 'vesper', 'raijin'] as const) {
+      let s = makeFightingState({ stageId: 'ruined_hall', enableHazards: true, p2Char: bossChar });
+      const bossMaxHp = s.fighters[1].maxHp;
+      s = {
+        ...s,
+        fighters: [
+          { ...s.fighters[0], x: 640_000 },
+          { ...s.fighters[1], x: 640_000, hp: bossMaxHp },
+        ],
+        hazards: [
+          {
+            id: 1,
+            x: 640_000,
+            phase: 'telegraph',
+            frame: BALANCE.SLAB_TELEGRAPH_FRAMES - 1,
+            hitMask: 0,
+          },
+        ],
+      };
+      // Frame transitions telegraph -> active; next step tests active hitbox overlap
+      s = step(s, [0, 0]);
+      s = step(s, [0, 0]);
+      expect(s.fighters[0].hp).toBeLessThan(s.fighters[0].maxHp);
+      expect(s.fighters[1].hp).toBe(bossMaxHp);
+      expect(s.fighters[1].action).not.toBe('hitstun');
+    }
+
+    // Stage boss encounters (hazardImmuneSlot: 1) are also immune regardless of character
+    let stageBoss = makeFightingState({
+      stageId: 'ruined_hall',
+      enableHazards: true,
+      p2Char: 'swordsman',
+      hazardImmuneSlot: 1,
+    });
+    stageBoss = {
+      ...stageBoss,
+      fighters: [
+        { ...stageBoss.fighters[0], x: 640_000 },
+        { ...stageBoss.fighters[1], x: 640_000 },
+      ],
+      hazards: [{ id: 1, x: 640_000, phase: 'active', frame: 2, hitMask: 0 }],
+    };
+    stageBoss = step(stageBoss, [0, 0]);
+    expect(stageBoss.fighters[0].hp).toBeLessThan(stageBoss.fighters[0].maxHp);
+    expect(stageBoss.fighters[1].hp).toBe(stageBoss.fighters[1].maxHp);
+  });
+
+  it('gives all 6 bosses distinct character-specific attacks across 16 total varieties', () => {
+    const baseShapes = new Set(['ground_wave', 'sky_beams', 'dash_slash', 'shock_nova']);
+    const allShapes = new Set<string>();
+    const signatureOwners = new Map<string, string>();
+    for (const bossId of ['vesper', 'raijin', 'swordsman', 'brawler', 'assassin', 'warden'] as const) {
+      const kit = BOSS_SPECIALS_BY_CHAR[bossId];
+      expect(kit).toHaveLength(4);
+      let sigCount = 0;
+      for (const spec of kit) {
+        allShapes.add(spec.shape);
+        if (!baseShapes.has(spec.shape)) {
+          sigCount += 1;
+          expect(signatureOwners.has(spec.shape)).toBe(false);
+          signatureOwners.set(spec.shape, bossId);
+        }
+      }
+      expect(sigCount).toBeGreaterThanOrEqual(2);
+    }
+    expect(allShapes.size).toBe(16);
+  });
+
+  it('matches boss attack hitboxes to visual strike zones so visually clear positions take no phantom damage', () => {
+    const floorY = BALANCE.FLOOR_Y_PX * BALANCE.FP_SCALE;
+
+    // 1. Multi-column specials (e.g. falling_coffins & rock_monoliths): safe between pillars/coffins, hits inside
+    const base = makeFightingState({ p2Char: 'warden' });
+    const warden = { ...base.fighters[1], x: 1_040_000, facing: -1 as const };
+    const coffinBuilt = spawnBossSpecialById(warden, 'warden_coffin_barrage', 1)!;
+    const activeCoffin = { ...coffinBuilt.special, phase: 'active' as const, frame: 2 };
+    const coffinW = activeCoffin.right - activeCoffin.left;
+    const coffinCenter0 = activeCoffin.left + Math.trunc((0.5 * coffinW) / 3);
+    const gapBetweenCoffins = activeCoffin.left + Math.trunc(coffinW / 3);
+    const coffinBoxes = getBossSpecialHitboxes(activeCoffin, warden.x);
+
+    const safeInGap = getHurtbox({ ...base.fighters[0], x: gapBetweenCoffins, y: floorY });
+    const hitInCoffin = getHurtbox({ ...base.fighters[0], x: coffinCenter0, y: floorY });
+    expect(coffinBoxes.some((b) => rectsOverlap(b, safeInGap))).toBe(false);
+    expect(coffinBoxes.some((b) => rectsOverlap(b, hitInCoffin))).toBe(true);
+
+    // 2. Inverted tornado cone (tempest_vortex): safe standing outside narrow bottom base, hits near center
+    const raijin = { ...base.fighters[1], charId: 'raijin' as const, x: 900_000, facing: -1 as const };
+    const vortex = { ...spawnBossSpecialById(raijin, 'raijin_maelstrom', 2)!.special, phase: 'active' as const, frame: 2 };
+    const vortexMid = Math.trunc((vortex.left + vortex.right) / 2);
+    const vortexBoxes = getBossSpecialHitboxes(vortex, raijin.x);
+    expect(vortexBoxes.some((b) => rectsOverlap(b, getHurtbox({ ...base.fighters[0], x: vortex.left + 35_000, y: floorY })))).toBe(false);
+    expect(vortexBoxes.some((b) => rectsOverlap(b, getHurtbox({ ...base.fighters[0], x: vortexMid, y: floorY })))).toBe(true);
+
+    // 3. Chest-height dash_slash (vesper_sever): crouching ducks cleanly underneath, standing gets hit
+    const vesper = { ...base.fighters[1], charId: 'vesper' as const, x: 900_000, facing: -1 as const };
+    const dashSlash = { ...spawnBossSpecialById(vesper, 'vesper_sever', 3)!.special, phase: 'active' as const, frame: 1 };
+    const dashResCrouch = stepBossSpecials([dashSlash], [{ ...base.fighters[0], x: 500_000, y: floorY, action: 'crouch' }, vesper], false);
+    expect(dashResCrouch.fighters[0].hp).toBe(base.fighters[0].maxHp);
+    const dashResStand = stepBossSpecials([dashSlash], [{ ...base.fighters[0], x: 500_000, y: floorY, action: 'idle' }, vesper], false);
+    expect(dashResStand.fighters[0].hp).toBeLessThan(base.fighters[0].maxHp);
+
+    // 4. Rising floor shock/boulder rupture: jumping high clears it cleanly
+    const brute = { ...base.fighters[1], charId: 'brawler' as const, x: 900_000, facing: -1 as const };
+    const quake = { ...spawnBossSpecialById(brute, 'brute_quake_slam', 4)!.special, phase: 'active' as const, frame: 1 };
+    const jumpRes = stepBossSpecials([quake], [{ ...base.fighters[0], x: 500_000, y: floorY - 65_000, grounded: false }, brute], false);
+    expect(jumpRes.fighters[0].hp).toBe(base.fighters[0].maxHp);
+
+    // 5. Shadow clones (assassin_blink_ambush): gaps between mirage clones deal no damage
+    const assassin = { ...base.fighters[1], charId: 'assassin' as const, x: 900_000, facing: -1 as const };
+    const mirage = { ...spawnBossSpecialById(assassin, 'assassin_blink_ambush', 5)!.special, phase: 'active' as const, frame: 1 };
+    const mW = mirage.right - mirage.left;
+    const gapBetweenClones = mirage.left + Math.trunc(mW * 0.35);
+    const mirageGapRes = stepBossSpecials([mirage], [{ ...base.fighters[0], x: gapBetweenClones, y: floorY }, assassin], false);
+    expect(mirageGapRes.fighters[0].hp).toBe(base.fighters[0].maxHp);
   });
 });

@@ -37,7 +37,7 @@ export class VsBotMode implements GameMode {
     const seed = options.seed ?? (Date.now() & 0xffffff);
     const enemyChar = options.enemyChar ?? 'swordsman';
     const stageId = options.stageId ?? 'beige_plain';
-    const behavior = options.behavior ?? ((enemyChar === 'warden' || enemyChar === 'vesper') ? 'boss' : enemyChar === 'assassin' ? 'counter' : enemyChar === 'brawler' ? 'aggressive' : 'defensive');
+    const behavior = options.behavior ?? ((enemyChar === 'warden' || enemyChar === 'vesper' || enemyChar === 'raijin') ? 'boss' : enemyChar === 'assassin' ? 'counter' : enemyChar === 'brawler' ? 'aggressive' : 'defensive');
 
     this.title = options.titleOverride ?? `Vs Bot (${options.difficulty.toUpperCase()})`;
     this.p2Label = options.p2LabelOverride ?? `Bot • ${options.difficulty.toUpperCase()}`;
@@ -50,6 +50,7 @@ export class VsBotMode implements GameMode {
       roundsToWin: BALANCE.ROUNDS_TO_WIN,
       roundTimerFrames: BALANCE.DEFAULT_ROUND_TIMER_FRAMES,
       enableHazards: options.enableHazards ?? stageId === 'ruined_hall',
+      hazardImmuneSlot: 1,
       parryAssist: options.parryAssist ?? false,
       infiniteGuardP2: false,
       trainingMode: false,

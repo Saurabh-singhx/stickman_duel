@@ -25,11 +25,11 @@ export class StageView {
     const parallaxFar = (camX - 640) * -0.14;
     const parallaxMid = (camX - 640) * -0.28;
 
-    // Smooth multi-band atmospheric sky gradient
-    g.rect(-200, -160, w + 400, floorY + 160).fill(spec.skyTop);
+    // Smooth multi-band atmospheric sky gradient (covers ultrawide aspect ratios & camera pan)
+    g.rect(-2000, -1000, w + 4000, floorY + 1000).fill(spec.skyTop);
     for (let b = 0; b < 6; b += 1) {
       const bandH = 380 - b * 55;
-      g.rect(-200, floorY - bandH, w + 400, bandH).fill({ color: spec.skyBottom, alpha: 0.14 });
+      g.rect(-2000, floorY - bandH, w + 4000, bandH).fill({ color: spec.skyBottom, alpha: 0.14 });
     }
 
     // Distant moon / sun disc for cinematic depth
@@ -64,15 +64,15 @@ export class StageView {
     }
 
     // Soft horizon fog band
-    g.rect(-200, floorY - 95, w + 400, 95).fill({ color: spec.horizonFog, alpha: 0.28 });
-    g.rect(-200, floorY - 40, w + 400, 40).fill({ color: spec.horizonFog, alpha: 0.22 });
+    g.rect(-2000, floorY - 95, w + 4000, 95).fill({ color: spec.horizonFog, alpha: 0.28 });
+    g.rect(-2000, floorY - 40, w + 4000, 40).fill({ color: spec.horizonFog, alpha: 0.22 });
 
     // Floor plane
-    g.rect(-200, floorY, w + 400, h - floorY + 200).fill(spec.floorColor);
+    g.rect(-2000, floorY, w + 4000, h - floorY + 1000).fill(spec.floorColor);
 
     // Subtle soft floor shadow gradient + crisp horizon floor line
-    g.rect(-200, floorY, w + 400, 14).fill({ color: spec.floorLineColor, alpha: 0.12 });
-    g.moveTo(-200, floorY).lineTo(w + 200, floorY).stroke({
+    g.rect(-2000, floorY, w + 4000, 14).fill({ color: spec.floorLineColor, alpha: 0.12 });
+    g.moveTo(-2000, floorY).lineTo(w + 2000, floorY).stroke({
       color: spec.floorLineColor,
       width: 2.5,
       alpha: 0.68,

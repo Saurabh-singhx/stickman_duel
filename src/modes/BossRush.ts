@@ -116,6 +116,7 @@ export class BossRushMode implements GameMode {
       roundsToWin: enc.gauntletCount > 1 ? 1 : BALANCE.ROUNDS_TO_WIN,
       roundTimerFrames: BALANCE.DEFAULT_ROUND_TIMER_FRAMES,
       enableHazards: enc.enableHazards,
+      hazardImmuneSlot: 1,
       parryAssist: this.parryAssist,
       infiniteGuardP2: false,
       trainingMode: false,

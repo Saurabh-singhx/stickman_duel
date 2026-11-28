@@ -128,6 +128,8 @@ export interface ActivePlayerSpecial {
   readonly victim: FighterSlot;
   readonly specialId: PlayerSpecialId;
   readonly frame: number;
+  readonly originX?: number;
+  readonly targetX?: number;
 }
 
 export type MatchPhase = 'intro' | 'fighting' | 'special' | 'finisher' | 'round_end' | 'match_end';
@@ -152,6 +154,7 @@ export interface MatchConfig {
   readonly roundsToWin: number;
   readonly roundTimerFrames: number;
   readonly enableHazards: boolean;
+  readonly hazardImmuneSlot?: FighterSlot;
   readonly parryAssist: boolean;
   readonly infiniteGuardP2: boolean;
   readonly trainingMode: boolean;
@@ -161,6 +164,7 @@ export interface MatchConfig {
 export type SimEvent =
   | { readonly type: 'ROUND_START'; readonly round: number }
   | { readonly type: 'ATTACK_START'; readonly slot: FighterSlot; readonly move: MoveId; readonly x: number; readonly y: number; readonly facing: 1 | -1 }
+  | { readonly type: 'ATTACK_SWING'; readonly slot: FighterSlot; readonly move: MoveId; readonly x: number; readonly y: number; readonly facing: 1 | -1 }
   | { readonly type: 'UNBLOCKABLE_TELEGRAPH'; readonly slot: FighterSlot; readonly x: number; readonly y: number }
   | { readonly type: 'HIT'; readonly attacker: FighterSlot; readonly defender: FighterSlot; readonly move: MoveId; readonly damage: number; readonly x: number; readonly y: number; readonly isHeavy: boolean; readonly isCounter: boolean }
   | { readonly type: 'BLOCK'; readonly attacker: FighterSlot; readonly defender: FighterSlot; readonly guardRemaining: number; readonly x: number; readonly y: number }

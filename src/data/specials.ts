@@ -42,7 +42,7 @@ export const PLAYER_SPECIALS: Record<PlayerSpecialId, PlayerSpecialSpec> = {
     beatFrames: [22, 46, 70, 94],
     damage: PLAYER_SPECIAL_DAMAGE,
     launchToEdge: false,
-    color: 0xffe066,
+    color: 0xef4444,
   },
   arena_greatsword: {
     id: 'arena_greatsword',
@@ -103,9 +103,40 @@ export function selectPlayerSpecialId(rngValue: number): PlayerSpecialId {
   return PLAYER_SPECIAL_IDS[Math.abs(rngValue) % PLAYER_SPECIAL_IDS.length] ?? 'aerial_lasers';
 }
 
+/** Shared vertical lift curve (px) for the aerial_lasers special so body & beam stay locked. */
+export function getAerialLasersLiftPx(frame: number): number {
+  const total = PLAYER_SPECIALS.aerial_lasers.cinematicFrames;
+  if (frame <= 0 || frame >= total) return 0;
+  if (frame < 20) {
+    const u = frame / 20;
+    return (1 - Math.pow(1 - u, 3)) * 195;
+  }
+  if (frame > 125) {
+    const u = Math.max(0, (total - frame) / 20);
+    return (1 - Math.pow(1 - u, 2)) * 195;
+  }
+  return 195;
+}
+
 /** Coverage & counterplay geometry for boss arena special attacks. */
 export type BossSpecialCoverage = 'half_arena' | 'full_arena';
-export type BossSpecialShape = 'ground_wave' | 'sky_beams' | 'dash_slash' | 'shock_nova';
+export type BossSpecialShape =
+  | 'ground_wave'
+  | 'sky_beams'
+  | 'dash_slash'
+  | 'shock_nova'
+  | 'starfall_spears'
+  | 'eclipse_ring'
+  | 'zigzag_chain'
+  | 'tempest_vortex'
+  | 'blade_rain'
+  | 'traveling_crescent'
+  | 'boulder_rupture'
+  | 'rock_monoliths'
+  | 'cross_slashes'
+  | 'shadow_clones'
+  | 'falling_coffins'
+  | 'soul_geyser';
 
 /** Data specification for a boss arena-covering special attack. */
 export interface BossSpecialSpec {
@@ -134,22 +165,76 @@ export const BOSS_SPECIALS_BY_CHAR: Record<CharacterId, readonly BossSpecialSpec
     { id: 'vesper_tide', name: 'Moonfall Tide', coverage: 'full_arena', shape: 'ground_wave',
       telegraphFrames: 52, activeFrames: 12, damage: 18, guardDamage: 24,
       lowGround: true, parryable: false, color: 0xb8a0ff },
-    { id: 'vesper_lances', name: 'Astral Lances', coverage: 'half_arena', shape: 'sky_beams',
+    { id: 'vesper_lances', name: 'Astral Lances', coverage: 'half_arena', shape: 'starfall_spears',
       telegraphFrames: 46, activeFrames: 12, damage: 20, guardDamage: 30,
       lowGround: false, parryable: true, color: 0xbdefff },
-    { id: 'vesper_eclipse', name: 'Hollow Eclipse', coverage: 'half_arena', shape: 'shock_nova',
+    { id: 'vesper_eclipse', name: 'Hollow Eclipse', coverage: 'half_arena', shape: 'eclipse_ring',
       telegraphFrames: 48, activeFrames: 12, damage: 22, guardDamage: 32,
       lowGround: false, parryable: true, color: 0xc4a0ff },
     { id: 'vesper_sever', name: 'Midnight Sever', coverage: 'half_arena', shape: 'dash_slash',
       telegraphFrames: 38, activeFrames: 10, damage: 20, guardDamage: 28,
       lowGround: false, parryable: true, color: 0xdceeff },
   ],
+  raijin: [
+    {
+      id: 'raijin_spark_surge',
+      name: 'Arc Surge',
+      coverage: 'full_arena',
+      shape: 'ground_wave',
+      telegraphFrames: 44,
+      activeFrames: 12,
+      damage: 17,
+      guardDamage: 26,
+      lowGround: true,
+      parryable: false,
+      color: 0x38bdf8,
+    },
+    {
+      id: 'raijin_sky_bolts',
+      name: 'Skyfall Bolts',
+      coverage: 'full_arena',
+      shape: 'sky_beams',
+      telegraphFrames: 42,
+      activeFrames: 12,
+      damage: 19,
+      guardDamage: 30,
+      lowGround: false,
+      parryable: true,
+      color: 0x67e8f9,
+    },
+    {
+      id: 'raijin_thunder_blink',
+      name: 'Thunderclap Blink',
+      coverage: 'half_arena',
+      shape: 'zigzag_chain',
+      telegraphFrames: 34,
+      activeFrames: 10,
+      damage: 20,
+      guardDamage: 32,
+      lowGround: false,
+      parryable: true,
+      color: 0xbae6fd,
+    },
+    {
+      id: 'raijin_maelstrom',
+      name: 'Storm Maelstrom',
+      coverage: 'half_arena',
+      shape: 'tempest_vortex',
+      telegraphFrames: 44,
+      activeFrames: 12,
+      damage: 21,
+      guardDamage: 34,
+      lowGround: false,
+      parryable: true,
+      color: 0x0ea5e9,
+    },
+  ],
   swordsman: [
     {
       id: 'ronin_iaido_wave',
       name: 'Iaido Horizon Wave',
       coverage: 'half_arena',
-      shape: 'ground_wave',
+      shape: 'traveling_crescent',
       telegraphFrames: 30,
       activeFrames: 14,
       damage: 18,
@@ -162,7 +247,7 @@ export const BOSS_SPECIALS_BY_CHAR: Record<CharacterId, readonly BossSpecialSpec
       id: 'ronin_crescent_rain',
       name: 'Steel Rain',
       coverage: 'full_arena',
-      shape: 'sky_beams',
+      shape: 'blade_rain',
       telegraphFrames: 34,
       activeFrames: 14,
       damage: 18,
@@ -203,7 +288,7 @@ export const BOSS_SPECIALS_BY_CHAR: Record<CharacterId, readonly BossSpecialSpec
       id: 'brute_quake_slam',
       name: 'Seismic Tremor',
       coverage: 'full_arena',
-      shape: 'ground_wave',
+      shape: 'boulder_rupture',
       telegraphFrames: 34,
       activeFrames: 16,
       damage: 22,
@@ -229,7 +314,7 @@ export const BOSS_SPECIALS_BY_CHAR: Record<CharacterId, readonly BossSpecialSpec
       id: 'brute_twin_pillars',
       name: 'Earthen Pillars',
       coverage: 'half_arena',
-      shape: 'sky_beams',
+      shape: 'rock_monoliths',
       telegraphFrames: 32,
       activeFrames: 16,
       damage: 20,
@@ -270,7 +355,7 @@ export const BOSS_SPECIALS_BY_CHAR: Record<CharacterId, readonly BossSpecialSpec
       id: 'assassin_shadow_cross',
       name: 'Scarlet Lattice',
       coverage: 'full_arena',
-      shape: 'sky_beams',
+      shape: 'cross_slashes',
       telegraphFrames: 30,
       activeFrames: 12,
       damage: 18,
@@ -296,7 +381,7 @@ export const BOSS_SPECIALS_BY_CHAR: Record<CharacterId, readonly BossSpecialSpec
       id: 'assassin_blink_ambush',
       name: 'Phantom Mirage',
       coverage: 'half_arena',
-      shape: 'shock_nova',
+      shape: 'shadow_clones',
       telegraphFrames: 26,
       activeFrames: 12,
       damage: 19,
@@ -311,7 +396,7 @@ export const BOSS_SPECIALS_BY_CHAR: Record<CharacterId, readonly BossSpecialSpec
       id: 'warden_coffin_barrage',
       name: 'Sepulcher Barrage',
       coverage: 'full_arena',
-      shape: 'sky_beams',
+      shape: 'falling_coffins',
       telegraphFrames: 34,
       activeFrames: 16,
       damage: 22,
@@ -337,7 +422,7 @@ export const BOSS_SPECIALS_BY_CHAR: Record<CharacterId, readonly BossSpecialSpec
       id: 'warden_soul_nova',
       name: 'Warden Cataclysm',
       coverage: 'half_arena',
-      shape: 'shock_nova',
+      shape: 'soul_geyser',
       telegraphFrames: 30,
       activeFrames: 14,
       damage: 22,

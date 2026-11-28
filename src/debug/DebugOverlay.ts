@@ -1,6 +1,7 @@
 import { Graphics } from 'pixi.js';
 import { BALANCE } from '../data/balance';
 import { getAttackHitbox, getHurtbox, getSlabHitbox } from '../sim/Collision';
+import { getBossSpecialHitboxes } from '../sim/BossSpecials';
 import { fromFp } from '../sim/Fixed';
 import { hashState } from '../sim/Snapshot';
 import type { GameState } from '../sim/State';
@@ -81,6 +82,15 @@ export class DebugOverlay {
           .rect(fromFp(box.left), fromFp(box.top), fromFp(box.right - box.left), fromFp(box.bottom - box.top))
           .fill({ color: 0xf97316, alpha: 0.25 })
           .stroke({ color: 0xf97316, width: 2 });
+      }
+    }
+
+    for (const bs of state.bossSpecials) {
+      for (const box of getBossSpecialHitboxes(bs, state.fighters[bs.ownerSlot].x)) {
+        boxGfx
+          .rect(fromFp(box.left), fromFp(box.top), fromFp(box.right - box.left), fromFp(box.bottom - box.top))
+          .fill({ color: 0xe879f9, alpha: 0.22 })
+          .stroke({ color: 0xe879f9, width: 2, alpha: 0.9 });
       }
     }
   }

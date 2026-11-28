@@ -1,7 +1,7 @@
 /**
  * Playable and enemy character archetypes.
  */
-export type CharacterId = 'hero' | 'swordsman' | 'brawler' | 'assassin' | 'warden' | 'vesper';
+export type CharacterId = 'hero' | 'swordsman' | 'brawler' | 'assassin' | 'warden' | 'vesper' | 'raijin';
 
 /**
  * Weapon silhouette type rendered procedurally by FighterView.
@@ -34,6 +34,7 @@ export interface CharacterSpec {
   readonly capeColor: number;
   readonly slashColor: number;
   readonly finisherId: string;
+  readonly isBoss?: boolean;
 }
 
 /**
@@ -46,7 +47,15 @@ export const CHARACTERS: Record<CharacterId, CharacterSpec> = {
     reachPercent: 106, weapon: 'dark_katana',
     hasCape: true, hasHood: false, hasMask: true, hasGlow: false,
     bodyColor: 0xd9ddec, accentColor: 0xb8a0ff, weaponColor: 0xbdefff,
-    capeColor: 0x493866, slashColor: 0xb8a0ff, finisherId: 'eclipse_iaijutsu',
+    capeColor: 0x493866, slashColor: 0xb8a0ff, finisherId: 'eclipse_iaijutsu', isBoss: true,
+  },
+  raijin: {
+    id: 'raijin', name: 'Raijin', title: 'The Storm Sovereign',
+    maxHp: 130, maxGuard: 105, speedPercent: 108, damagePercent: 106,
+    reachPercent: 102, weapon: 'twin_daggers',
+    hasCape: true, hasHood: false, hasMask: true, hasGlow: false,
+    bodyColor: 0xe0f2fe, accentColor: 0x38bdf8, weaponColor: 0x67e8f9,
+    capeColor: 0x0f2942, slashColor: 0x38bdf8, finisherId: 'tempest_thunder', isBoss: true,
   },
   hero: {
     id: 'hero',
@@ -61,7 +70,7 @@ export const CHARACTERS: Record<CharacterId, CharacterSpec> = {
     hasCape: true,
     hasHood: false,
     hasMask: false,
-    hasGlow: true,
+    hasGlow: false,
     bodyColor: 0xf8f6f0,
     accentColor: 0xf5c84c,
     weaponColor: 0xffd55a,
@@ -152,5 +161,6 @@ export const CHARACTERS: Record<CharacterId, CharacterSpec> = {
     capeColor: 0x241d26,
     slashColor: 0xf97316,
     finisherId: 'sepulcher_split',
+    isBoss: true,
   },
 };

@@ -30,7 +30,7 @@ export class SfxController {
 
     for (const ev of events) {
       switch (ev.type) {
-        case 'ATTACK_START':
+        case 'ATTACK_SWING':
           this.playWhoosh(ctx, bus, ev.move === 'heavy' || ev.move === 'unblockable' || ev.move === 'counter');
           break;
         case 'UNBLOCKABLE_TELEGRAPH':
@@ -264,8 +264,12 @@ export class SfxController {
       s.playTone(ctx, bus, 'sawtooth', 240, 1120, 0.45, 0.22, t);
       s.playTone(ctx, bus, 'sine', 480, 1480, 0.5, 0.16, t + 0.05);
     } else if (specialId === 'black_thunder') {
-      s.playNoise(ctx, bus, 'lowpass', 220, 60, 1.0, 1.2, 0.34, t);
-      s.playTone(ctx, bus, 'sine', 75, 32, 1.1, 0.36, t);
+      // Gathering storm: steady atmospheric rain bed + deep cloud rumble + rising sword-to-sky arc
+      s.playNoise(ctx, bus, 'bandpass', 1700, 1200, 0.7, 2.2, 0.14, t, true);
+      s.playNoise(ctx, bus, 'lowpass', 95, 220, 1.1, 1.15, 0.34, t, true);
+      s.playTone(ctx, bus, 'sine', 52, 74, 0.9, 0.28, t);
+      s.playNoise(ctx, bus, 'highpass', 1800, 4200, 1.4, 0.32, 0.22, t + 0.14);
+      s.playTone(ctx, bus, 'sawtooth', 210, 620, 0.28, 0.12, t + 0.14);
     } else {
       s.playTone(ctx, bus, 'triangle', 320, 880, 0.35, 0.24, t);
       s.playNoise(ctx, bus, 'bandpass', 1200, 420, 1.8, 0.28, 0.2, t);
@@ -279,6 +283,12 @@ export class SfxController {
     if (specialId === 'aerial_lasers') {
       s.playTone(ctx, bus, 'sawtooth', 920 * p, 260 * p, 0.22, 0.22, t);
       s.playNoise(ctx, bus, 'highpass', 2400, 900, 1.6, 0.16, 0.2, t);
+    } else if (specialId === 'black_thunder') {
+      // Skyward bolt discharge crackle + distant rolling thunder swell
+      s.playNoise(ctx, bus, 'highpass', 3400 * p, 1200, 1.5, 0.11, 0.26, t);
+      s.playNoise(ctx, bus, 'bandpass', 1400 * p, 520, 1.8, 0.18, 0.2, t + 0.02);
+      s.playNoise(ctx, bus, 'lowpass', 260, 58, 1.1, 0.75, 0.36, t + 0.03, true);
+      s.playTone(ctx, bus, 'sine', 68 * p, 28, 0.65, 0.3, t + 0.03);
     } else if (specialId === 'unarmed_launch') {
       s.playTone(ctx, bus, 'triangle', 1400 * p, 920 * p, 0.12, 0.18, t);
     } else if (specialId === 'blade_impale') {
@@ -294,9 +304,19 @@ export class SfxController {
     const t = ctx.currentTime;
     this.engine.duckMusic(1.2);
     if (specialId === 'black_thunder') {
-      s.playNoise(ctx, bus, 'highpass', 4200, 1000, 1.4, 0.24, 0.42, t);
-      s.playNoise(ctx, bus, 'lowpass', 280, 52, 1.0, 1.5, 0.48, t + 0.04);
-      s.playTone(ctx, bus, 'sine', 96, 26, 0.9, 0.5, t);
+      // Realistic multi-stage thunderstorm:
+      // 1) Sharp electrical leader crack & air tear
+      s.playNoise(ctx, bus, 'highpass', 4800, 1400, 1.4, 0.06, 0.42, t);
+      s.playNoise(ctx, bus, 'highpass', 3600, 900, 1.5, 0.14, 0.38, t + 0.025);
+      s.playTone(ctx, bus, 'sawtooth', 1480, 190, 0.09, 0.2, t);
+      // 2) Heavy thunderclap chest punch
+      s.playTone(ctx, bus, 'sine', 84, 24, 0.85, 0.56, t + 0.015);
+      s.playNoise(ctx, bus, 'lowpass', 480, 62, 1.0, 0.95, 0.54, t + 0.02, true);
+      // 3) Staggered echoing rolling thunder waves across the valley + rain tail
+      s.playNoise(ctx, bus, 'lowpass', 320, 52, 1.1, 1.15, 0.42, t + 0.24, true);
+      s.playNoise(ctx, bus, 'lowpass', 240, 42, 1.2, 1.25, 0.32, t + 0.62, true);
+      s.playNoise(ctx, bus, 'lowpass', 160, 36, 1.1, 1.1, 0.22, t + 1.08, true);
+      s.playNoise(ctx, bus, 'bandpass', 1500, 950, 0.7, 1.4, 0.12, t + 0.15, true);
     } else if (specialId === 'unarmed_launch') {
       s.playTone(ctx, bus, 'sine', 160, 32, 0.45, 0.52, t);
       s.playNoise(ctx, bus, 'bandpass', 900, 180, 1.2, 0.3, 0.4, t);
