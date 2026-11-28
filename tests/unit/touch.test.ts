@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../../src/data/balance';
-import { computeJoystickState } from '../../src/input/Touch';
+import { computeJoystickState, findActionButtonAt, type ActionHitTarget } from '../../src/input/Touch';
 import { createInitialState, step } from '../../src/sim/Sim';
 import { INPUT_BITS, type GameState, type MatchConfig } from '../../src/sim/State';
 
@@ -88,5 +88,24 @@ describe('Mobile Touch Joystick & Controls Logic', () => {
     s2 = step(s2, [INPUT_BITS.UNBLOCKABLE, 0]);
     expect(s2.fighters[0].action).toBe('attack');
     expect(s2.fighters[0].currentMove).toBe('unblockable');
+  });
+
+  it('resolves radial action cluster hits cleanly for taps and thumb-slides', () => {
+    const targets: ActionHitTarget[] = [
+      { id: 'light', cx: 300, cy: 300, radius: 34 },
+      { id: 'parry', cx: 220, cy: 302, radius: 28 },
+      { id: 'heavy', cx: 308, cy: 220, radius: 28 },
+      { id: 'dodge', cx: 245, cy: 239, radius: 27 },
+    ];
+
+    expect(findActionButtonAt(300, 300, targets)).toBe('light');
+    expect(findActionButtonAt(220, 302, targets)).toBe('parry');
+    // Forgiving outer edge padding (+4px)
+    expect(findActionButtonAt(308, 190, targets, 4)).toBe('heavy');
+    // Closest button wins when near two padded zones
+    expect(findActionButtonAt(242, 240, targets, 4)).toBe('dodge');
+    // Outside all buttons returns null
+    expect(findActionButtonAt(120, 120, targets, 4)).toBeNull();
+    expect(findActionButtonAt(Number.NaN, 300, targets)).toBeNull();
   });
 });

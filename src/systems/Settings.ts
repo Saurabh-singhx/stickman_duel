@@ -2,13 +2,16 @@ import type { VolumeConfig } from '../audio/AudioEngine';
 import { DEFAULT_GAMEPAD_MAPPING, type GamepadMapping } from '../input/Gamepad';
 import { DEFAULT_P1_KEYS, DEFAULT_P2_KEYS, type KeyBindings } from '../input/Keyboard';
 import type { RenderOptions } from '../render/Renderer';
-import { loadVersioned, saveVersioned } from './SaveSystem';
+import { CURRENT_SAVE_VERSION, loadVersioned, saveVersioned } from './SaveSystem';
 
 /** Feature flags for experimental capabilities. */
 export interface FeatureFlags {
   readonly experimentalRollbackStub: boolean;
   readonly showFrameGraph: boolean;
 }
+
+/** Visibility mode for the non-intrusive on-screen combat guide. */
+export type ControlHintsMode = 'auto' | 'on' | 'off';
 
 /** Complete persisted user settings and accessibility preferences. */
 export interface UserSettings {
@@ -22,6 +25,7 @@ export interface UserSettings {
   readonly reduceFlashing: boolean;
   readonly parryAssist: boolean;
   readonly colorblindTelegraph: boolean;
+  readonly controlHints: ControlHintsMode;
   readonly touchControls: boolean;
   readonly touchMode: 'auto' | 'on' | 'off';
   readonly touchSize: 'normal' | 'large';
@@ -43,6 +47,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   reduceFlashing: false,
   parryAssist: false,
   colorblindTelegraph: false,
+  controlHints: 'auto',
   touchControls: false,
   touchMode: 'auto',
   touchSize: 'normal',
@@ -65,6 +70,9 @@ export function migrateSettings(raw: unknown, fromVersion: number): UserSettings
   if (fromVersion < 4) {
     if (!mergedP1.special) mergedP1.special = 'KeyE';
   }
+  if (fromVersion < 5) {
+    if (mergedP1.block === 'KeyL') mergedP1.block = 'KeyQ';
+  }
   return {
     ...DEFAULT_SETTINGS,
     ...obj,
@@ -78,7 +86,10 @@ export function migrateSettings(raw: unknown, fromVersion: number): UserSettings
 
 /** Loads persisted user settings. */
 export function loadSettings(): UserSettings {
-  return migrateSettings(loadVersioned(SETTINGS_KEY, { ...DEFAULT_SETTINGS }, migrateSettings), 4);
+  return migrateSettings(
+    loadVersioned(SETTINGS_KEY, { ...DEFAULT_SETTINGS }, migrateSettings),
+    CURRENT_SAVE_VERSION,
+  );
 }
 
 /** Saves user settings to persistent storage. */

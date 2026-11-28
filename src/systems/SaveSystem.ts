@@ -2,7 +2,7 @@
  * Safe, versioned localStorage persistence with automatic schema migration.
  * Gracefully degrades to an in-memory map in headless/private environments.
  */
-export const CURRENT_SAVE_VERSION = 4;
+export const CURRENT_SAVE_VERSION = 5;
 
 export interface VersionedEnvelope<T> {
   readonly version: number;

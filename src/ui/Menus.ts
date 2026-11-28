@@ -3,7 +3,9 @@ import { CHARACTERS } from '../data/characters';
 import type { DifficultyId } from '../data/enemies';
 import { STAGES, STAGE_LIST, type StageId } from '../data/stages';
 import { getDailyChallenge, loadProgress, claimDailyInvitation, DAILY_BOSSES, type DailyBossId } from '../systems/Progress';
+import { loadSettings } from '../systems/Settings';
 import { loadStats } from '../systems/Stats';
+import { formatKeyCode } from './CombatGuide';
 
 /** Actions triggered by the Main Menu UI. */
 export type MenuAction =
@@ -229,9 +231,10 @@ export class MenuView {
     // Footer controls hint & stats
     const footer = document.createElement('div');
     footer.style.cssText = 'display:flex;justify-content:space-between;font-size:12px;color:#cfc7b8;';
+    const k = loadSettings().p1Keys;
     const controls = document.createElement('span');
     controls.textContent =
-      'P1: A/D Move • Space Jump • C Crouch • Shift Dodge • LMB/J Light • RMB/K Heavy • C+RMB/K Red • L Block/Parry • U Grab • E Special  •  F1 Hitboxes';
+      `P1: ${formatKeyCode(k.left)}/${formatKeyCode(k.right)} Move • ${formatKeyCode(k.up)} Jump • ${formatKeyCode(k.down)} Crouch • ${formatKeyCode(k.dodge)} Dodge • LMB/${formatKeyCode(k.light)} Light • RMB/${formatKeyCode(k.heavy)} Heavy • ${formatKeyCode(k.down)}+RMB/${formatKeyCode(k.heavy)} Red • ${formatKeyCode(k.block)} Block/Parry • ${formatKeyCode(k.grab)} Grab • ${formatKeyCode(k.special)} Special  •  F1 Hitboxes`;
     const statLine = document.createElement('span');
     statLine.textContent = `Wins: ${stats.matchesWon}/${stats.matchesPlayed} • Parries: ${stats.totalParries} • Daily Best: ${dailyBest}`;
     footer.append(controls, statLine);

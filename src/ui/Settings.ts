@@ -1,6 +1,6 @@
 import { panelFocus } from './PanelFocus';
 import type { InputAction } from '../input/InputFrame';
-import type { UserSettings } from '../systems/Settings';
+import type { ControlHintsMode, UserSettings } from '../systems/Settings';
 
 /**
  * Settings modal for audio volumes, accessibility toggles, quality, key rebinding, and feature flags.
@@ -123,6 +123,25 @@ export class SettingsView {
     addToggle('Colorblind-Safe Telegraph Cues', this.settings.colorblindTelegraph, (v) =>
       this.update({ colorblindTelegraph: v }),
     );
+    const hintsLabel = document.createElement('label');
+    hintsLabel.textContent = 'On-screen move guide';
+    const hintsSelect = document.createElement('select');
+    hintsSelect.setAttribute('aria-label', 'On-screen move guide');
+    for (const [value, text] of [
+      ['auto', 'Auto (new players & training)'],
+      ['on', 'Always on'],
+      ['off', 'Off'],
+    ] as const) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = text;
+      hintsSelect.appendChild(option);
+    }
+    hintsSelect.value = this.settings.controlHints;
+    hintsSelect.onchange = () =>
+      this.update({ controlHints: hintsSelect.value as ControlHintsMode });
+    hintsLabel.appendChild(hintsSelect);
+    card.appendChild(hintsLabel);
     section('Touch controls');
     const modeLabel = document.createElement('label');
     modeLabel.textContent = 'Show controls';

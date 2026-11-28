@@ -3,7 +3,7 @@ import { ACTION_TO_BIT, type InputAction, type InputBitfield } from './InputFram
 /** Key mapping from logical action to KeyboardEvent.code. */
 export type KeyBindings = Record<InputAction, string>;
 
-/** Default P1 bindings: WASD + J/K/L + Shift/U. */
+/** Default P1 bindings: A/D + Space/C + J/K/Q + Shift/U/E. */
 export const DEFAULT_P1_KEYS: KeyBindings = {
   left: 'KeyA',
   right: 'KeyD',
@@ -11,7 +11,7 @@ export const DEFAULT_P1_KEYS: KeyBindings = {
   down: 'KeyC',
   light: 'KeyJ',
   heavy: 'KeyK',
-  block: 'KeyL',
+  block: 'KeyQ',
   dodge: 'ShiftLeft',
   grab: 'KeyU',
   special: 'KeyE',

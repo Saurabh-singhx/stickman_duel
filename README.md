@@ -32,7 +32,7 @@ Open `http://localhost:5173` in your browser.
 | Light Slash (3-hit chain) | `Left Click` or `J` | `Numpad 1` | `X` (Square) |
 | Heavy Slash | `Right Click` or `K` | `Numpad 2` | `Y` (Triangle) |
 | Unblockable Red-Flash | `C + Right Click` or `C + K` | `↓ + Numpad 2` | Down + Heavy |
-| Block (hold) / Parry (tap) | `L` | `Numpad 3` | `LB` / `L1` |
+| Block (hold) / Parry (tap) | `Q` | `Numpad 3` | `LB` / `L1` |
 | Dodge / Perfect Dodge | `Left Shift` | `Numpad 0` | `B` (Circle) |
 | Grab / Execute | `U` | `Numpad 4` | `RB` / `R1` |
 | Special Power (at 100% meter) | `E` | `Numpad 5` | — |

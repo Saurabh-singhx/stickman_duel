@@ -33,7 +33,8 @@ import {
   trackOnlineStatus,
 } from './systems/Analytics';
 import { loadSettings, saveSettings, toRenderOptions, type UserSettings } from './systems/Settings';
-import { recordMatchStats } from './systems/Stats';
+import { loadStats, recordMatchStats } from './systems/Stats';
+import { CombatGuideView, shouldShowCombatGuide } from './ui/CombatGuide';
 import { RoomLobby } from './ui/RoomLobby';
 import { MenuView, type MenuAction } from './ui/Menus';
 import {
@@ -85,6 +86,7 @@ async function bootstrap(): Promise<void> {
   input.touch.setVisible(false);
 
   const hud = new HudView(uiRoot);
+  const combatGuide = new CombatGuideView(uiRoot, settings.p1Keys);
   const debugOverlay = new DebugOverlay(uiRoot);
   const frameStep = new FrameStepController();
   const toasts = new ToastManager(uiRoot);
@@ -105,18 +107,37 @@ async function bootstrap(): Promise<void> {
   let customPreviewState: GameState | null = null;
   let orientationGuard: OrientationGuard | null = null;
 
+  const isTouchControlVisible = () =>
+    settings.touchMode === 'on' ||
+    (settings.touchMode === 'auto' && (settings.touchControls || isMobileTouchDevice()));
+
+  const syncCombatGuide = (activeMode: GameMode | null) => {
+    if (!activeMode || paused || resultsShown || customPreviewState) {
+      combatGuide.setVisible(false);
+      return;
+    }
+    const show = shouldShowCombatGuide(
+      settings.controlHints,
+      loadStats().matchesPlayed,
+      activeMode.id,
+    );
+    const touchActive = isTouchControlVisible() && !(orientationGuard?.isPortraitBlocked() ?? false);
+    combatGuide.setTouchMode(touchActive);
+    combatGuide.setKeyBindings(settings.p1Keys);
+    combatGuide.setVisible(show);
+  };
+
   const gameHost = document.getElementById('app')!;
   const setCombatCapture = (active: boolean) => {
     gameHost.classList.toggle('combat-active', active);
     input.mouse.setCombatActive(active);
-    const touchEnabled =
-      settings.touchMode === 'on' ||
-      (settings.touchMode === 'auto' && (settings.touchControls || isMobileTouchDevice()));
+    const touchEnabled = isTouchControlVisible();
     const showTouch = active && touchEnabled && !(orientationGuard?.isPortraitBlocked() ?? false);
     input.touch.configure(settings.touchSize, settings.touchOpacity);
     input.touch.setFullscreenState(isFullscreenActive());
     input.touch.setVisible(showTouch);
     hud.setTouchMode(showTouch);
+    combatGuide.setTouchMode(showTouch);
     // Clear held controls across UI transitions.
     window.dispatchEvent(new Event('blur'));
     if (active) {
@@ -177,6 +198,11 @@ async function bootstrap(): Promise<void> {
     resultsView.hide();
     hud.setVisible(true);
     hud.showBanner(nextMode.title, 70);
+    combatGuide.configureForMatch(
+      shouldShowCombatGuide(settings.controlHints, loadStats().matchesPlayed, nextMode.id),
+      settings.p1Keys,
+      isTouchControlVisible() && !(orientationGuard?.isPortraitBlocked() ?? false),
+    );
     audio.setPaused(false);
     activeStageId = st.config.stageId;
     music.start(st.config.stageId, st.config.seed);
@@ -194,6 +220,7 @@ async function bootstrap(): Promise<void> {
     resultsShown = false;
     music.stop();
     hud.setVisible(false);
+    combatGuide.setVisible(false);
     subStatusEl.style.display = 'none';
     pauseView.setVisible(false);
     resultsView.hide();
@@ -364,6 +391,7 @@ async function bootstrap(): Promise<void> {
       if (mode && !paused && !resultsShown) {
         setCombatCapture(true);
       }
+      syncCombatGuide(mode);
     },
     () => {
       settingsView.setVisible(false);
@@ -379,6 +407,7 @@ async function bootstrap(): Promise<void> {
       pauseView.setVisible(false);
       audio.setPaused(false);
       setCombatCapture(true);
+      syncCombatGuide(mode);
     },
     onRestart: () => handleMenuAction(lastAction),
     onSettings: () => settingsView.setVisible(true, settings),
@@ -409,6 +438,7 @@ async function bootstrap(): Promise<void> {
         gameHost.classList.contains('combat-active')) {
       paused = true;
       setCombatCapture(false);
+      syncCombatGuide(mode);
       pauseView.setVisible(true);
       audio.setPaused(true);
     }
@@ -418,6 +448,7 @@ async function bootstrap(): Promise<void> {
     if (!mode || paused || resultsShown) return;
     paused = true;
     setCombatCapture(false);
+    syncCombatGuide(mode);
     pauseView.setVisible(true);
     audio.setPaused(true);
   };
@@ -433,10 +464,12 @@ async function bootstrap(): Promise<void> {
       if (portrait && mode && !paused && !resultsShown) {
         paused = true;
         setCombatCapture(false);
+        syncCombatGuide(mode);
         pauseView.setVisible(true);
         audio.setPaused(true);
       } else if (!portrait && mode && !paused && !resultsShown) {
         setCombatCapture(true);
+        syncCombatGuide(mode);
       }
       requestAnimationFrame(() => renderer.app.resize());
     },
@@ -459,6 +492,7 @@ async function bootstrap(): Promise<void> {
       settingsView.setVisible(false);
       paused = true;
       setCombatCapture(false);
+      syncCombatGuide(mode);
       pauseView.setVisible(paused);
       audio.setPaused(paused);
     } else if (e.code === 'F1') {
@@ -494,9 +528,10 @@ async function bootstrap(): Promise<void> {
     setCustomState: (st: GameState) => {
       customPreviewState = st;
       menus.setVisible(false);
-    setCombatCapture(true);
+      setCombatCapture(true);
       hud.setVisible(true);
       hud.showBanner('', 1);
+      combatGuide.setVisible(false);
       subStatusEl.style.display = 'none';
       debugOverlay.setVisible(false);
       renderer.mountScene(st.config.p1Char, st.config.p2Char);
@@ -563,6 +598,7 @@ async function bootstrap(): Promise<void> {
           renderer.handleEvents(st.events, st, renderOpts);
           sfx.handleEvents(st.events);
         }
+        combatGuide.onSimStep(st, st.events);
 
         if (st.config.stageId !== activeStageId) {
           activeStageId = st.config.stageId;
@@ -614,6 +650,7 @@ async function bootstrap(): Promise<void> {
         } else if (st.phase === 'match_end' && !resultsShown) {
           resultsShown = true;
           setCombatCapture(false);
+          combatGuide.setVisible(false);
           const rec = mode.getRecording();
           lastRecording = rec;
           if (rec) ghostStore.save(rec);
@@ -670,7 +707,16 @@ async function bootstrap(): Promise<void> {
       renderer.render(prev, curr, alpha, renderOpts);
       hud.update(curr, mode.p2Label);
       hud.setNetInfo(mode.getNetBadge());
-      input.touch.updateHudFeedback(curr.fighters[0].specialMeter, curr.fighters[0].counterWindow > 0);
+      combatGuide.updateView(curr);
+      const [f0, f1] = curr.fighters;
+      input.touch.updateHudFeedback(f0.specialMeter, f0.counterWindow > 0, {
+        unblockableIncoming:
+          (f1.action === 'attack' && f1.currentMove === 'unblockable') ||
+          curr.hazards.some((h) => h.phase === 'telegraph' || h.phase === 'active') ||
+          curr.bossSpecials.length > 0,
+        foeBlocking: f1.action === 'block' && Math.abs(f1.x - f0.x) <= 190_000,
+        guardLow: f0.action === 'block' && f0.guard < 35,
+      });
 
       const subText = mode.getSubStatus();
       if (subText) {

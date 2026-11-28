@@ -116,7 +116,7 @@
           "name": "What are the keyboard controls for Stickman Duel?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Player 1 uses A/D to move, Space to jump, C to crouch, Left Shift to dodge, Left Mouse Click or J for light slashes, Right Mouse Click or K for heavy slashes, C + Right Click for unblockables, L to block or parry, U to grab, and E for special abilities."
+            "text": "Player 1 uses A/D to move, Space to jump, C to crouch, Left Shift to dodge, Left Mouse Click or J for light slashes, Right Mouse Click or K for heavy slashes, C + Right Click for unblockables, Q to block or parry, U to grab, and E for special abilities."
           }
         },
         {
@@ -445,13 +445,13 @@
         background: rgba(235, 196, 91, 0.12);
       }
 
-      /* Right Side Ergonomic Action Cluster */
+      /* Right Side Ergonomic Radial Action Cluster */
       .touch-actions-cluster {
         position: absolute;
         right: max(14px, env(safe-area-inset-right));
         bottom: max(14px, env(safe-area-inset-bottom));
-        width: 204px;
-        height: 188px;
+        width: 218px;
+        height: 206px;
         pointer-events: none;
         transform: scale(var(--touch-scale));
         transform-origin: bottom right;
@@ -473,7 +473,7 @@
         gap: 1px;
         padding: 0;
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.52), inset 0 1px 3px rgba(255, 255, 255, 0.14);
-        transition: transform 70ms ease-out, border-color 90ms ease-out, box-shadow 90ms ease-out;
+        transition: transform 70ms ease-out, border-color 90ms ease-out, box-shadow 90ms ease-out, opacity 120ms ease-out;
       }
       .touch-btn-icon {
         position: relative;
@@ -488,7 +488,7 @@
       .touch-btn-label {
         position: relative;
         z-index: 2;
-        font-size: 10px;
+        font-size: 9.5px;
         font-weight: 800;
         letter-spacing: 0.1px;
         line-height: 1;
@@ -503,77 +503,115 @@
       }
       .touch-btn[data-held="true"] .touch-btn-label { color: #1d170a; }
 
-      /* Arc Button Positions & Semantic Colors */
+      /* Concentric Two-Ring Thumb-Arc Positions & Semantic Colors */
       .touch-btn-light {
-        width: 62px; height: 62px; right: 0; bottom: 0;
-        border-color: rgba(245, 200, 76, 0.72);
+        width: 68px; height: 68px; right: 6px; bottom: 6px;
+        border-width: 2.5px;
+        border-color: rgba(245, 200, 76, 0.85);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.56), inset 0 0 14px rgba(245, 200, 76, 0.14);
       }
-      .touch-btn-light .touch-btn-icon { width: 25px; height: 25px; color: #ffd54f; }
+      .touch-btn-light .touch-btn-icon { width: 27px; height: 27px; color: #ffd54f; }
+      .touch-btn-light .touch-btn-label { font-size: 10.5px; color: #fff3cc; }
       .touch-btn-light[data-held="true"] .touch-btn-icon { color: #1d170a; }
 
       .touch-btn-parry {
-        width: 54px; height: 54px; right: 72px; bottom: 4px;
-        border-color: rgba(147, 197, 253, 0.68);
+        width: 56px; height: 56px; right: 92px; bottom: 10px;
+        border-color: rgba(147, 197, 253, 0.74);
       }
-      .touch-btn-parry .touch-btn-icon { width: 21px; height: 21px; color: #93c5fd; }
-      .touch-btn-parry[data-held="true"] { background: radial-gradient(circle at center, #93c5fd 0%, #3b82f6 100%); box-shadow: 0 0 18px rgba(147, 197, 253, 0.7); }
+      .touch-btn-parry .touch-btn-icon { width: 22px; height: 22px; color: #93c5fd; }
+      .touch-btn-parry[data-held="true"] { background: radial-gradient(circle at center, #93c5fd 0%, #3b82f6 100%); box-shadow: 0 0 18px rgba(147, 197, 253, 0.72); }
       .touch-btn-parry[data-held="true"] .touch-btn-icon { color: #0f172a; }
-
-      .touch-btn-grab {
-        width: 49px; height: 49px; right: 136px; bottom: 8px;
-        border-color: rgba(216, 201, 168, 0.56);
+      .touch-btn-parry[data-caution="true"] {
+        border-color: #fbbf24;
+        box-shadow: 0 0 12px rgba(251, 191, 36, 0.45);
       }
-      .touch-btn-grab .touch-btn-icon { width: 19px; height: 19px; color: #e2d5b8; }
-
-      .touch-btn-heavy {
-        width: 54px; height: 54px; right: 4px; bottom: 72px;
-        border-color: rgba(251, 191, 36, 0.68);
-      }
-      .touch-btn-heavy .touch-btn-icon { width: 22px; height: 22px; color: #fbbf24; }
-      .touch-btn-heavy[data-held="true"] .touch-btn-icon { color: #1d170a; }
 
       .touch-btn-dodge {
-        width: 52px; height: 52px; right: 70px; bottom: 68px;
-        border-color: rgba(203, 213, 225, 0.58);
+        width: 54px; height: 54px; right: 68px; bottom: 74px;
+        border-color: rgba(203, 213, 225, 0.65);
       }
       .touch-btn-dodge .touch-btn-icon { width: 21px; height: 21px; color: #e2e8f0; }
 
+      .touch-btn-heavy {
+        width: 56px; height: 56px; right: 4px; bottom: 92px;
+        border-color: rgba(251, 191, 36, 0.72);
+      }
+      .touch-btn-heavy .touch-btn-icon { width: 23px; height: 23px; color: #fbbf24; }
+      .touch-btn-heavy[data-held="true"] .touch-btn-icon { color: #1d170a; }
+
+      .touch-btn-grab {
+        width: 48px; height: 48px; right: 162px; bottom: 12px;
+        border-color: rgba(216, 201, 168, 0.56);
+      }
+      .touch-btn-grab .touch-btn-icon { width: 18px; height: 18px; color: #e2d5b8; }
+      .touch-btn-grab .touch-btn-label { font-size: 9px; }
+
       .touch-btn-break {
-        width: 49px; height: 49px; right: 132px; bottom: 66px;
-        border-color: rgba(248, 113, 113, 0.7);
+        width: 50px; height: 50px; right: 140px; bottom: 76px;
+        border-color: rgba(248, 113, 113, 0.72);
       }
       .touch-btn-break .touch-btn-icon { width: 19px; height: 19px; color: #f87171; }
+      .touch-btn-break .touch-btn-label { font-size: 9px; }
       .touch-btn-break[data-held="true"] { background: radial-gradient(circle at center, #f87171 0%, #dc2626 100%); box-shadow: 0 0 18px rgba(248, 113, 113, 0.72); }
       .touch-btn-break[data-held="true"] .touch-btn-icon,
       .touch-btn-break[data-held="true"] .touch-btn-label { color: #fff; }
 
       .touch-btn-special {
-        width: 56px; height: 56px; right: 3px; bottom: 134px;
-        border-color: rgba(56, 189, 248, 0.65);
+        width: 58px; height: 58px; right: 68px; bottom: 142px;
+        border-color: rgba(56, 189, 248, 0.45);
       }
       .touch-btn-special .touch-btn-icon { width: 21px; height: 21px; color: #7dd3fc; }
+      .touch-btn-special[data-ready="false"] { opacity: 0.78; }
+      .touch-btn-special[data-ready="false"] .touch-btn-icon { color: #7c9fb3; }
+      .touch-special-ring {
+        position: absolute;
+        inset: -2px;
+        width: calc(100% + 4px);
+        height: calc(100% + 4px);
+        transform: rotate(-90deg);
+        z-index: 3;
+        pointer-events: none;
+      }
+      .touch-special-track {
+        fill: none;
+        stroke: rgba(56, 189, 248, 0.16);
+        stroke-width: 3;
+      }
+      .touch-special-arc {
+        fill: none;
+        stroke: #38bdf8;
+        stroke-width: 3.2;
+        stroke-linecap: round;
+        transition: stroke-dashoffset 100ms linear, stroke 120ms ease;
+      }
+      .touch-btn-special[data-ready="true"] .touch-special-arc { stroke: #ffd54f; }
       .touch-special-fill {
         position: absolute;
         left: 0;
         right: 0;
         bottom: 0;
         height: 0%;
-        background: linear-gradient(180deg, rgba(56, 189, 248, 0.35), rgba(56, 189, 248, 0.65));
+        background: linear-gradient(180deg, rgba(56, 189, 248, 0.3), rgba(56, 189, 248, 0.58));
         transition: height 120ms linear;
         z-index: 1;
         pointer-events: none;
       }
       .touch-btn-special[data-ready="true"] {
+        opacity: 1;
         border-color: #ffd54f;
         animation: touch-special-pulse 1.15s ease-in-out infinite;
       }
       .touch-btn-special[data-ready="true"] .touch-special-fill {
-        background: linear-gradient(180deg, rgba(255, 213, 79, 0.5), rgba(56, 189, 248, 0.72));
+        background: linear-gradient(180deg, rgba(255, 213, 79, 0.48), rgba(56, 189, 248, 0.7));
       }
       .touch-btn-special[data-ready="true"] .touch-btn-icon { color: #fff8dc; }
       .touch-btn[data-counter="true"] {
         border-color: #ffe066;
-        box-shadow: 0 0 16px rgba(255, 224, 102, 0.72);
+        box-shadow: 0 0 16px rgba(255, 224, 102, 0.75);
+      }
+      .touch-btn[data-recommended="true"] {
+        border-color: #38bdf8;
+        box-shadow: 0 0 16px rgba(56, 189, 248, 0.65);
       }
 
       @keyframes touch-special-pulse {
@@ -780,6 +818,135 @@
       .room-lobby button:focus-visible, .room-lobby input:focus-visible { outline:3px solid #ffd55a; outline-offset:3px; }
       .room-lobby[data-state="error"] p, input[aria-invalid="true"] { color:#ffb5a7; }
       @media(max-height:480px) { .room-lobby { justify-content:flex-start; gap:12px; padding:20px; } }
+
+      /* Non-intrusive New Player Combat Guide HUD */
+      .combat-guide {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 14;
+        display: none;
+        flex-direction: column;
+        justify-content: flex-end;
+        align-items: center;
+        padding: 0 18px 12px;
+        gap: 8px;
+        transition: opacity 180ms ease;
+      }
+      .combat-guide.with-touch {
+        justify-content: flex-start;
+        padding: 84px 14px 0;
+      }
+      .combat-guide[data-cinematic="true"] {
+        opacity: 0;
+      }
+      .combat-guide-callout {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 14px;
+        border-radius: 999px;
+        background: rgba(20, 19, 17, 0.84);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(245, 200, 76, 0.38);
+        color: #f5ebd6;
+        font-size: 12.5px;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+        max-width: min(760px, 100%);
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .combat-guide-callout[data-tone="parry"] { border-color: rgba(147, 197, 253, 0.65); }
+      .combat-guide-callout[data-tone="danger"] { border-color: rgba(248, 113, 113, 0.78); background: rgba(36, 17, 17, 0.88); }
+      .combat-guide-callout[data-tone="special"] { border-color: rgba(56, 189, 248, 0.72); }
+      .combat-guide-callout[data-tone="gold"] { border-color: rgba(255, 213, 79, 0.78); }
+      .cg-badge {
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 1px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        background: rgba(245, 200, 76, 0.18);
+        color: #ffd54f;
+        text-transform: uppercase;
+      }
+      .combat-guide-callout[data-tone="parry"] .cg-badge { background: rgba(147, 197, 253, 0.18); color: #93c5fd; }
+      .combat-guide-callout[data-tone="danger"] .cg-badge { background: rgba(248, 113, 113, 0.24); color: #fca5a5; }
+      .combat-guide-callout[data-tone="special"] .cg-badge { background: rgba(56, 189, 248, 0.22); color: #7dd3fc; }
+      .cg-msg {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      .cg-kbd {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 6px;
+        border-radius: 4px;
+        background: rgba(45, 41, 35, 0.96);
+        border: 1px solid rgba(245, 200, 76, 0.48);
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+        color: #fff6dc;
+        font-family: inherit;
+        font-size: 10.5px;
+        font-weight: 800;
+        letter-spacing: 0.4px;
+      }
+      .combat-guide-strip {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 6px;
+        padding: 7px 10px;
+        border-radius: 10px;
+        background: rgba(20, 19, 17, 0.78);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(245, 200, 76, 0.26);
+        box-shadow: 0 10px 26px rgba(0, 0, 0, 0.42);
+        max-width: min(1060px, 100%);
+      }
+      .cg-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 8px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        transition: border-color 160ms ease, background-color 160ms ease;
+      }
+      .cg-item[data-done="true"] {
+        border-color: rgba(110, 231, 183, 0.45);
+        background: rgba(16, 185, 129, 0.1);
+      }
+      .cg-keys { display: inline-flex; align-items: center; gap: 3px; }
+      .cg-sep { font-size: 10px; color: #9c927f; }
+      .cg-copy { display: flex; flex-direction: column; line-height: 1.1; }
+      .cg-label { font-size: 11px; font-weight: 750; color: #f4efe6; }
+      .cg-sub { font-size: 9.5px; color: #b8ae9b; }
+      .cg-check {
+        display: none;
+        font-size: 11px;
+        font-weight: 900;
+        color: #6ee7b7;
+      }
+      .cg-item[data-done="true"] .cg-check { display: inline; }
+      @media (max-width: 900px), (max-height: 540px) {
+        .combat-guide { padding: 0 10px 8px; gap: 5px; }
+        .combat-guide-callout { font-size: 11.5px; padding: 5px 11px; }
+        .combat-guide-strip { gap: 4px; padding: 5px 7px; }
+        .cg-item { padding: 2px 6px; gap: 5px; }
+        .cg-sub { display: none; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .combat-guide, .cg-item { transition: none; }
+      }
     </style>
   </head>
   <body>
@@ -803,7 +970,7 @@
           <li><strong>Daily Boss Fights:</strong> Daily seeded arenas and unique boss duels with persistent best scores.</li>
         </ul>
         <h2>Combat Controls</h2>
-        <p>A/D to move, Space to jump, C to crouch, Shift to dodge, Left Click/J for light slashes, Right Click/K for heavy slashes, C + Right Click for unblockables, L to parry and block, U to grab, and E for specials.</p>
+        <p>A/D to move, Space to jump, C to crouch, Shift to dodge, Left Click/J for light slashes, Right Click/K for heavy slashes, C + Right Click for unblockables, Q to parry and block, U to grab, and E for specials.</p>
       </section>
     </main>
     <script type="module" src="/src/main.ts"></script>

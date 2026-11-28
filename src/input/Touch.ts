@@ -66,6 +66,53 @@ export function computeJoystickState(dx: number, dy: number, maxRadius: number):
   };
 }
 
+export interface ActionHitTarget {
+  readonly id: string;
+  readonly cx: number;
+  readonly cy: number;
+  readonly radius: number;
+}
+
+export interface TouchHudCues {
+  readonly unblockableIncoming?: boolean;
+  readonly foeBlocking?: boolean;
+  readonly guardLow?: boolean;
+}
+
+/**
+ * Resolves which circular combat button lies under a pointer coordinate,
+ * picking the closest button within `radius + padding` to support smooth thumb-sliding.
+ */
+export function findActionButtonAt(
+  x: number,
+  y: number,
+  targets: readonly ActionHitTarget[],
+  padding = 5,
+): string | null {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  let bestId: string | null = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const t of targets) {
+    if (t.radius <= 0) continue;
+    const d = Math.hypot(x - t.cx, y - t.cy);
+    if (d <= t.radius + padding && d < bestDist) {
+      bestDist = d;
+      bestId = t.id;
+    }
+  }
+  return bestId;
+}
+
+function triggerHapticTap(): void {
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate(8);
+    }
+  } catch {
+    // Ignore when haptics are blocked or unavailable
+  }
+}
+
 interface ActionButtonSpec {
   readonly id: string;
   readonly label: string;
@@ -143,7 +190,7 @@ const PAUSE_SVG =
 /**
  * Multi-pointer mobile combat controls:
  * - Bottom-left 8-way fighting joystick (Left, Right, Jump, Crouch)
- * - Bottom-right ergonomic combat arc with game icons (Light, Heavy, Parry, Dodge, Break, Grab, Special)
+ * - Bottom-right two-ring radial combat arc with thumb-slide switching, radial special ring & cues
  * - Top-corner utility buttons (Fullscreen & Pause)
  */
 export class TouchInput {
@@ -151,10 +198,13 @@ export class TouchInput {
   private readonly joystickZone = document.createElement('div');
   private readonly joystickBase = document.createElement('div');
   private readonly joystickKnob = document.createElement('div');
+  private readonly actionsCluster = document.createElement('div');
   private readonly dirIndicators: Record<'up' | 'down' | 'left' | 'right', HTMLSpanElement>;
-  private readonly heldButtons = new Map<number, { bit: number; el: HTMLButtonElement }>();
+  private readonly heldButtons = new Map<number, { id: string; bit: number; el: HTMLButtonElement }>();
+  private readonly actionSpecs = new Map<string, ActionButtonSpec>();
   private readonly actionElements = new Map<string, HTMLButtonElement>();
   private readonly specialFillEl = document.createElement('span');
+  private specialArcEl: SVGCircleElement | null = null;
   private readonly fullscreenBtn = document.createElement('button');
   private readonly pauseBtn = document.createElement('button');
 
@@ -230,9 +280,8 @@ export class TouchInput {
 
     this.bindJoystickEvents();
 
-    // Bottom-right Action Cluster
-    const actionsCluster = document.createElement('div');
-    actionsCluster.className = 'touch-actions-cluster';
+    // Bottom-right Radial Action Cluster with thumb-slide switching
+    this.actionsCluster.className = 'touch-actions-cluster';
 
     for (const spec of ACTION_BUTTONS) {
       const button = document.createElement('button');
@@ -245,6 +294,28 @@ export class TouchInput {
         this.specialFillEl.className = 'touch-special-fill';
         this.specialFillEl.setAttribute('aria-hidden', 'true');
         button.appendChild(this.specialFillEl);
+
+        const ringSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        ringSvg.setAttribute('class', 'touch-special-ring');
+        ringSvg.setAttribute('viewBox', '0 0 60 60');
+        ringSvg.setAttribute('aria-hidden', 'true');
+        const track = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        track.setAttribute('class', 'touch-special-track');
+        track.setAttribute('cx', '30');
+        track.setAttribute('cy', '30');
+        track.setAttribute('r', '27');
+        const arc = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        arc.setAttribute('class', 'touch-special-arc');
+        arc.setAttribute('cx', '30');
+        arc.setAttribute('cy', '30');
+        arc.setAttribute('r', '27');
+        arc.setAttribute('pathLength', '100');
+        arc.setAttribute('stroke-dasharray', '100');
+        arc.setAttribute('stroke-dashoffset', '100');
+        ringSvg.append(track, arc);
+        this.specialArcEl = arc;
+        button.appendChild(ringSvg);
+        button.dataset.ready = 'false';
       }
 
       const iconWrap = document.createElement('span');
@@ -262,38 +333,98 @@ export class TouchInput {
         event.preventDefault();
         if (!this.visible) return;
         try {
-          button.setPointerCapture(event.pointerId);
+          this.actionsCluster.setPointerCapture(event.pointerId);
         } catch {
           // Ignore synthetic events without active pointer
         }
-        this.heldButtons.set(event.pointerId, { bit: spec.bit, el: button });
-        button.dataset.held = 'true';
+        this.activateButtonForPointer(event.pointerId, spec.id);
       };
 
-      const releaseBtn = (event: PointerEvent) => {
-        const entry = this.heldButtons.get(event.pointerId);
-        if (!entry) return;
-        this.heldButtons.delete(event.pointerId);
-        const stillHeld = [...this.heldButtons.values()].some((v) => v.el === entry.el);
-        if (!stillHeld) {
-          delete entry.el.dataset.held;
-        }
-      };
-
-      button.onpointerup = releaseBtn;
-      button.onpointercancel = releaseBtn;
-      button.onlostpointercapture = releaseBtn;
-
+      this.actionSpecs.set(spec.id, spec);
       this.actionElements.set(spec.id, button);
-      actionsCluster.appendChild(button);
+      this.actionsCluster.appendChild(button);
     }
 
-    this.container.append(this.fullscreenBtn, this.pauseBtn, this.joystickZone, actionsCluster);
+    this.bindClusterSlideEvents();
+
+    this.container.append(this.fullscreenBtn, this.pauseBtn, this.joystickZone, this.actionsCluster);
     host.appendChild(this.container);
     this.setVisible(false);
 
     window.addEventListener('blur', this.clear);
     document.addEventListener('visibilitychange', this.clear);
+  }
+
+  private activateButtonForPointer(pointerId: number, buttonId: string): void {
+    const spec = this.actionSpecs.get(buttonId);
+    const button = this.actionElements.get(buttonId);
+    if (!spec || !button) return;
+
+    const prev = this.heldButtons.get(pointerId);
+    if (prev?.id === buttonId) return;
+
+    if (prev) {
+      this.heldButtons.delete(pointerId);
+      const stillHeld = [...this.heldButtons.values()].some((v) => v.el === prev.el);
+      if (!stillHeld) delete prev.el.dataset.held;
+    }
+
+    this.heldButtons.set(pointerId, { id: buttonId, bit: spec.bit, el: button });
+    button.dataset.held = 'true';
+    triggerHapticTap();
+  }
+
+  private releaseButtonForPointer(pointerId: number): void {
+    const entry = this.heldButtons.get(pointerId);
+    if (!entry) return;
+    this.heldButtons.delete(pointerId);
+    const stillHeld = [...this.heldButtons.values()].some((v) => v.el === entry.el);
+    if (!stillHeld) {
+      delete entry.el.dataset.held;
+    }
+  }
+
+  private getClusterTargets(): ActionHitTarget[] {
+    const targets: ActionHitTarget[] = [];
+    for (const [id, el] of this.actionElements) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      targets.push({
+        id,
+        cx: rect.left + rect.width * 0.5,
+        cy: rect.top + rect.height * 0.5,
+        radius: rect.width * 0.5,
+      });
+    }
+    return targets;
+  }
+
+  private bindClusterSlideEvents(): void {
+    this.actionsCluster.onpointermove = (event) => {
+      if (!this.visible) return;
+      const current = this.heldButtons.get(event.pointerId);
+      if (!current) return;
+      event.preventDefault();
+
+      const targets = this.getClusterTargets();
+      const hitId = findActionButtonAt(event.clientX, event.clientY, targets, 4);
+      if (hitId !== null && hitId !== current.id) {
+        this.activateButtonForPointer(event.pointerId, hitId);
+      } else if (hitId === null) {
+        // Keep current hold steady through small thumb drift; release only if dragged well off-button.
+        const curTarget = targets.find((t) => t.id === current.id);
+        if (curTarget && Math.hypot(event.clientX - curTarget.cx, event.clientY - curTarget.cy) > curTarget.radius + 22) {
+          this.releaseButtonForPointer(event.pointerId);
+        }
+      }
+    };
+
+    const onRelease = (event: PointerEvent) => {
+      this.releaseButtonForPointer(event.pointerId);
+    };
+    this.actionsCluster.onpointerup = onRelease;
+    this.actionsCluster.onpointercancel = onRelease;
+    this.actionsCluster.onlostpointercapture = onRelease;
   }
 
   private bindJoystickEvents(): void {
@@ -364,13 +495,20 @@ export class TouchInput {
     this.fullscreenBtn.dataset.active = active ? 'true' : 'false';
   }
 
-  public updateHudFeedback(specialMeter: number, counterReady: boolean): void {
+  public updateHudFeedback(
+    specialMeter: number,
+    counterReady: boolean,
+    cues: TouchHudCues = {},
+  ): void {
     const clamped = Math.max(0, Math.min(100, specialMeter));
     this.specialFillEl.style.height = `${clamped}%`;
+    if (this.specialArcEl) {
+      this.specialArcEl.style.strokeDashoffset = String(100 - clamped);
+    }
+
     const specialBtn = this.actionElements.get('special');
     if (specialBtn) {
-      if (clamped >= 100) specialBtn.dataset.ready = 'true';
-      else delete specialBtn.dataset.ready;
+      specialBtn.dataset.ready = clamped >= 100 ? 'true' : 'false';
     }
     const lightBtn = this.actionElements.get('light');
     const heavyBtn = this.actionElements.get('heavy');
@@ -381,6 +519,26 @@ export class TouchInput {
     if (heavyBtn) {
       if (counterReady) heavyBtn.dataset.counter = 'true';
       else delete heavyBtn.dataset.counter;
+    }
+
+    const dodgeBtn = this.actionElements.get('dodge');
+    if (dodgeBtn) {
+      if (cues.unblockableIncoming) dodgeBtn.dataset.recommended = 'true';
+      else delete dodgeBtn.dataset.recommended;
+    }
+
+    const parryBtn = this.actionElements.get('parry');
+    if (parryBtn) {
+      if (cues.guardLow) parryBtn.dataset.caution = 'true';
+      else delete parryBtn.dataset.caution;
+    }
+
+    const breakBtn = this.actionElements.get('break');
+    const grabBtn = this.actionElements.get('grab');
+    for (const btn of [breakBtn, grabBtn]) {
+      if (!btn) continue;
+      if (cues.foeBlocking) btn.dataset.recommended = 'true';
+      else delete btn.dataset.recommended;
     }
   }
 

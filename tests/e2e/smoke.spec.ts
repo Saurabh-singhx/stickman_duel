@@ -189,7 +189,7 @@ test.describe('Stickman Duel Headless E2E & Visual Verification', () => {
     await tab2.keyboard.down('KeyA');
     await tab1.waitForTimeout(500);
     await tab1.keyboard.press('KeyJ');
-    await tab2.keyboard.press('KeyL');
+    await tab2.keyboard.press('KeyQ');
     await tab1.waitForTimeout(1100);
     await tab1.keyboard.up('KeyD');
     await tab2.keyboard.up('KeyA');
