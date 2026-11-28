@@ -6,7 +6,7 @@ import { BALANCE } from './data/balance';
 import { FINISHERS } from './data/finishers';
 import { PLAYER_SPECIALS } from './data/specials';
 import type { StageId } from './data/stages';
-import { AnimationLab, type LabBridgeApi } from './debug/AnimationLab';
+import type { AnimationLab, LabBridgeApi } from './debug/AnimationLab';
 import { DebugOverlay } from './debug/DebugOverlay';
 import { FrameStepController } from './debug/FrameStep';
 import { InputMapper } from './input/InputMapper';
@@ -60,7 +60,7 @@ interface DuskbladeDebugApi {
   toggleFrameStep(): boolean;
   stepOneFrame(): void;
   testSceneSwitches(count: number): { active: number; disposed: number };
-  openLab(): void;
+  openLab?(): void;
   lab?: LabBridgeApi;
 }
 
@@ -486,31 +486,31 @@ async function bootstrap(): Promise<void> {
   });
 
   const urlParams = new URLSearchParams(window.location.search);
-  const isLabMode = urlParams.get('lab') === '1' || urlParams.get('lab') === 'true';
+  const isLabMode = import.meta.env.DEV && (urlParams.get('lab') === '1' || urlParams.get('lab') === 'true');
   const labHideUi = urlParams.get('hideUi') === '1';
   let animationLab: AnimationLab | null = null;
 
-  const ensureLab = (): AnimationLab => {
-    if (!animationLab) {
-      mode?.dispose();
-      mode = null;
-      customPreviewState = null;
-      paused = false;
-      resultsShown = false;
-      setCombatCapture(false);
-      music.stop();
-      menus.setVisible(false);
-      pauseView.setVisible(false);
-      resultsView.hide();
-      combatGuide.setVisible(false);
-      subStatusEl.style.display = 'none';
-      hud.setVisible(!labHideUi);
-      animationLab = new AnimationLab(uiRoot, renderer, hud, debugOverlay, sfx, labHideUi);
-      if (window.__DUSKBLADE__) {
-        window.__DUSKBLADE__.lab = animationLab.getBridgeApi();
-      }
+  const ensureLab = async (): Promise<void> => {
+    if (!import.meta.env.DEV || animationLab) return;
+    const { AnimationLab: LabCtor } = await import('./debug/AnimationLab');
+    if (animationLab) return;
+    mode?.dispose();
+    mode = null;
+    customPreviewState = null;
+    paused = false;
+    resultsShown = false;
+    setCombatCapture(false);
+    music.stop();
+    menus.setVisible(false);
+    pauseView.setVisible(false);
+    resultsView.hide();
+    combatGuide.setVisible(false);
+    subStatusEl.style.display = 'none';
+    hud.setVisible(!labHideUi);
+    animationLab = new LabCtor(uiRoot, renderer, hud, debugOverlay, sfx, labHideUi);
+    if (window.__DUSKBLADE__) {
+      window.__DUSKBLADE__.lab = animationLab.getBridgeApi();
     }
-    return animationLab;
   };
 
   // Global hotkeys (ESC pause, F1 debug overlay, F2/F3 frame step, F4/F5 training dummy)
@@ -584,13 +584,17 @@ async function bootstrap(): Promise<void> {
         disposed: renderer.totalDisposedScenes,
       };
     },
-    openLab: () => {
-      ensureLab();
-    },
+    ...(import.meta.env.DEV
+      ? {
+          openLab: () => {
+            void ensureLab();
+          },
+        }
+      : {}),
   };
 
   if (isLabMode) {
-    ensureLab();
+    await ensureLab();
   }
 
   // Fixed 60 Hz simulation accumulator + interpolated rendering loop
