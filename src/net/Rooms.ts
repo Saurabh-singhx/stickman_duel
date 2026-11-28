@@ -1,4 +1,4 @@
-/** Unambiguous 32-character alphabet (omits 0, O, 1, I, L). */
+/** Unambiguous alphabet (omits 0, O, 1, I, L). */
 const ROOM_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const ROOM_CODE_LENGTH = 6;
 
@@ -19,7 +19,12 @@ export function generateRoomCode(seed?: number): string {
  * Normalizes and validates a user-entered room code.
  */
 export function normalizeRoomCode(raw: string): string | null {
-  const cleaned = raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  let value = raw.trim();
+  if (/^https?:\/\//i.test(value)) {
+    try { value = new URL(value).searchParams.get('room') ?? ''; } catch { return null; }
+  }
+  const cleaned = value.toUpperCase().replace(/[\s-]/g, '');
+  if (!/^[A-Z0-9]+$/.test(cleaned)) return null;
   if (cleaned.length !== ROOM_CODE_LENGTH) return null;
   return cleaned;
 }

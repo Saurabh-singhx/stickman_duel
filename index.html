@@ -222,7 +222,7 @@
       .match-selectors { display:flex; gap:12px; max-width:560px; }
       .online-grid { display:grid; grid-template-columns:1fr 1.3fr 1fr; gap:12px; }
       .join-controls { display:flex; align-items:stretch; gap:8px; min-width:0; }
-      .join-controls input { width:100px !important; flex-shrink:0; }
+      .join-controls input { width:100% !important; min-width:0; flex:1; letter-spacing:normal !important; text-transform:none !important; }
       .join-controls .control-card { flex:1; }
       .control-card { display:flex; align-items:flex-start; gap:14px; padding:18px; text-align:left; border:1px solid #5a5142; border-radius:10px; background:#24211c; color:#f4efe6; cursor:pointer; box-shadow:0 5px 12px #0003; min-width:0; }
       .control-icon { width:28px; height:28px; flex-shrink:0; color:#edcc79; }
@@ -768,6 +768,18 @@
         white-space: nowrap;
         border: 0;
       }
+      .room-hint { color:#ddd1ba; font-size:14px; margin:10px 0 0; }
+      .room-lobby { position:absolute; inset:0; z-index:45; background:#201d19; color:#f4efe6; padding:clamp(24px,6vw,72px); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; overflow:auto; text-align:center; }
+      .room-lobby[hidden], .room-lobby [hidden] { display:none; }
+      .room-lobby h2 { font-size:clamp(24px,4vw,40px); margin:0; }
+      .room-lobby p { max-width:48ch; margin:0; font-size:16px; line-height:1.6; }
+      .room-lobby input { width:min(100%,360px); box-sizing:border-box; padding:16px; font:700 28px monospace; text-align:center; background:#302a22; border:1px solid #9e8964; border-radius:8px; color:#ffd55a; }
+      .room-actions { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; }
+      .room-lobby button { min-height:44px; padding:12px 20px; border:1px solid #9e8964; border-radius:6px; background:#302a22; color:#f4efe6; font:inherit; cursor:pointer; }
+      .room-lobby button:hover { background:#4a3d28; }
+      .room-lobby button:focus-visible, .room-lobby input:focus-visible { outline:3px solid #ffd55a; outline-offset:3px; }
+      .room-lobby[data-state="error"] p, input[aria-invalid="true"] { color:#ffb5a7; }
+      @media(max-height:480px) { .room-lobby { justify-content:flex-start; gap:12px; padding:20px; } }
     </style>
   </head>
   <body>

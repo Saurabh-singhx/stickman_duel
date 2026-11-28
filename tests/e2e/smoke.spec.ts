@@ -156,11 +156,15 @@ test.describe('Stickman Duel Headless E2E & Visual Verification', () => {
   test('two browser tabs join the same room code and simulate in lockstep with matching hashes', async ({
     context,
   }) => {
+    test.setTimeout(70000);
     const tab1 = await context.newPage();
     const tab2 = await context.newPage();
 
     await tab1.goto('/');
     await tab2.goto('/');
+    for (const tab of [tab1, tab2]) {
+      await tab.getByTestId('btn-dismiss-daily').click();
+    }
     await tab1.waitForSelector('[data-testid="btn-host-room"]');
     await tab2.waitForSelector('[data-testid="input-room-code"]');
 
@@ -168,19 +172,16 @@ test.describe('Stickman Duel Headless E2E & Visual Verification', () => {
     await tab1.evaluate(() => {
       window.__DUSKBLADE__!.startAction({ type: 'HOST_ROOM', stageId: 'beige_plain' });
     });
-    await tab1.waitForTimeout(200);
-
-    // Extract hosted room code from status banner
-    const roomCode = await tab1.evaluate(() => {
-      const divs = Array.from(document.querySelectorAll('div'));
-      const match = divs.map((d) => d.textContent ?? '').find((t) => /Hosting Room [A-Z0-9]{6}/.test(t));
-      return match ? match.match(/Hosting Room ([A-Z0-9]{6})/)?.[1] ?? null : null;
-    });
-    expect(roomCode).not.toBeNull();
+    await expect(tab1.locator('.room-lobby')).toHaveAttribute('data-state', 'waiting', { timeout: 25000 });
+    const roomCode = await tab1.getByLabel('Your room code').inputValue();
+    expect(roomCode).toMatch(/^[A-Z0-9]{6}$/);
 
     // Guest joins via room code
     await tab2.fill('[data-testid="input-room-code"]', roomCode!);
     await tab2.click('[data-testid="btn-join-room"]');
+
+    await expect(tab1.locator('.room-lobby')).toBeHidden({ timeout: 25000 });
+    await expect(tab2.locator('.room-lobby')).toBeHidden({ timeout: 25000 });
 
     // Let both tabs exchange inputs in lockstep for ~1.5 seconds
     await tab1.waitForTimeout(400);
@@ -199,5 +200,13 @@ test.describe('Stickman Duel Headless E2E & Visual Verification', () => {
     expect(state1.frame).toBeGreaterThanOrEqual(15);
     expect(state2.frame).toBeGreaterThanOrEqual(15);
     expect(Math.abs(state1.frame - state2.frame)).toBeLessThanOrEqual(8);
+
+    // Invite links must initialize safely, and a third player must not replace the guest.
+    const extra = await context.newPage();
+    await extra.goto(`/?room=${roomCode}`);
+    await expect(extra.locator('.room-lobby [role="status"]')).toContainText('already has two players', { timeout: 25000 });
+    await expect(tab1.locator('.room-lobby')).toBeHidden();
+    await expect(tab2.locator('.room-lobby')).toBeHidden();
+
   });
 });

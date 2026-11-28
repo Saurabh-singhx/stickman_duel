@@ -1,3 +1,4 @@
+import { normalizeRoomCode } from '../net/Rooms';
 import { CHARACTERS } from '../data/characters';
 import type { DifficultyId } from '../data/enemies';
 import { STAGES, STAGE_LIST, type StageId } from '../data/stages';
@@ -105,7 +106,7 @@ export class MenuView {
     const stageSel = document.createElement('select');
     stageSel.setAttribute('aria-label', 'Arena');
     stageSel.style.cssText =
-      'flex:1;padding:8px 10px;background:rgba(28,26,23,0.92);color:#f4efe6;border:1px solid rgba(255,255,255,0.2);border-radius:6px;font-size:13px;';
+      'flex:1;padding:8px 10px;background:rgba(28,26,23,0.92);color:#f4efe6;border:1px solid rgba(255,255,255,0.2);border-radius:6px;font-size:16px;';
     for (const st of STAGE_LIST) {
       const opt = document.createElement('option');
       opt.value = st;
@@ -178,21 +179,33 @@ export class MenuView {
 
     const codeInput = document.createElement('input');
     codeInput.setAttribute('aria-label', 'Room code');
-    codeInput.placeholder = 'ROOM CODE';
-    codeInput.maxLength = 6;
+    codeInput.placeholder = 'Code or invite link';
+    codeInput.maxLength = 2048;
+    codeInput.autocomplete = 'off';
+    codeInput.spellcheck = false;
+    codeInput.setAttribute('aria-describedby', 'room-hint');
     codeInput.dataset.testid = 'input-room-code';
     codeInput.style.cssText =
-      'width:118px;padding:8px 10px;background:rgba(28,26,23,0.92);color:#f4efe6;border:1px solid rgba(255,213,90,0.35);border-radius:6px;font-size:13px;text-transform:uppercase;letter-spacing:2px;';
+      'width:118px;padding:8px 10px;background:rgba(28,26,23,0.92);color:#f4efe6;border:1px solid rgba(255,213,90,0.35);border-radius:6px;font-size:16px;text-transform:uppercase;letter-spacing:2px;';
 
     const joinBtn = this.makeBtn('Join', false);
     joinBtn.disabled = true;
-    codeInput.oninput = () => { joinBtn.disabled = codeInput.value.trim().length === 0; };
+    codeInput.oninput = () => {
+      joinBtn.disabled = codeInput.value.trim().length === 0;
+      codeInput.removeAttribute('aria-invalid');
+      hint.textContent = 'Play online with a friend. Host a room or paste their code or invite link.';
+    };
     codeInput.onkeydown = (event) => { if (event.key === 'Enter' && !joinBtn.disabled) joinBtn.click(); };
     joinBtn.dataset.testid = 'btn-join-room';
     joinBtn.onclick = () => {
-      if (codeInput.value.trim().length > 0) {
-        this.onAction({ type: 'JOIN_ROOM', code: codeInput.value.trim().toUpperCase() });
+      const code = normalizeRoomCode(codeInput.value);
+      if (!code) {
+        hint.textContent = 'Use a 6-character room code (letters and numbers), or paste the full invite link.';
+        codeInput.setAttribute('aria-invalid', 'true');
+        codeInput.focus();
+        return;
       }
+      this.onAction({ type: 'JOIN_ROOM', code });
     };
 
     const importBtn = this.makeBtn('Import Replay', false);
@@ -206,7 +219,12 @@ export class MenuView {
     joinGroup.className = 'join-controls';
     joinGroup.append(codeInput, joinBtn);
     netRow.append(hostBtn, joinGroup, importBtn);
-    col.appendChild(netRow);
+    const hint = document.createElement('p');
+    hint.id = 'room-hint';
+    hint.className = 'room-hint';
+    hint.setAttribute('aria-live', 'polite');
+    hint.textContent = 'Play online with a friend. Host a room or paste their code or invite link.';
+    col.append(netRow, hint);
 
     // Footer controls hint & stats
     const footer = document.createElement('div');

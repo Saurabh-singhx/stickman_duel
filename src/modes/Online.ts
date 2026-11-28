@@ -53,7 +53,9 @@ export class OnlineMode implements GameMode {
       this.desyncMessage = `DESYNC DETECTED @ frame ${frame} (${lh.toString(16)} vs ${rh.toString(16)})`;
     });
 
-    void this.session.start(options.roomId, options.isHost, options.seed, options.stageId);
+    void this.session.start(options.roomId, options.isHost, options.seed, options.stageId).catch((error: unknown) => {
+      this.desyncMessage = error instanceof Error ? error.message : 'Connection failed. Return to the menu to retry.';
+    });
   }
 
   public getState(): GameState {

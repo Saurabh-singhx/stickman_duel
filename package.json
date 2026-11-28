@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "peerjs": "1.5.5",
-    "pixi.js": "8.23.0"
+    "pixi.js": "8.23.0",
+    "posthog-js": "^1.455.4"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

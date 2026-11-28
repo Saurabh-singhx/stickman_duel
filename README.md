@@ -143,3 +143,25 @@ mist_bridge: {
 - [`docs/COMBAT_SPEC.md`](docs/COMBAT_SPEC.md) — Complete 60 fps frame data and priority rules
 - [`docs/NETCODE.md`](docs/NETCODE.md) — Determinism, input-delay protocol, and rollback plan
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — Next milestones and post-v1 features
+
+### Online rooms on Cloudflare Pages
+
+The static build supports online rooms through PeerJS's public signaling service.
+No application backend is deployed with this game. Hosting registers the room before
+showing its share controls; the host must keep the tab open. Guests can enter the
+six-character code or paste the full invite URL. Rooms support one host and one guest.
+Both players must use the updated build (the room acceptance handshake changed).
+
+This is not completely server-free: PeerJS provides signaling and WebRTC uses ICE
+services to establish connectivity. Restrictive NATs/firewalls may require a TURN
+relay; the current default PeerJS configuration cannot guarantee connectivity on
+every network. Connection failures are reported separately from invalid input.
+For controlled availability, deploy your own signaling and authenticated TURN
+service, or implement a WebSocket relay using a Cloudflare Worker with Durable
+Objects. A Durable Object must be deployed in a separate Worker for a Pages site.
+Never embed long-lived TURN credentials in the static build.
+
+Online tests now exercise the actual WebRTC path rather than a BroadcastChannel
+shortcut. The two-tab browser smoke test requires access to PeerJS signaling;
+unit tests mock signaling and cover registration, acceptance, capacity, errors,
+timeouts, cancellation and room-code parsing without external network access.

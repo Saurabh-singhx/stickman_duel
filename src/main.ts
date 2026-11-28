@@ -15,7 +15,7 @@ import { Local2PMode, type GameMode } from './modes/Local2P';
 import { OnlineMode } from './modes/Online';
 import { VsBotMode } from './modes/VsBot';
 import { WavesMode } from './modes/Waves';
-import { buildInviteLink, generateRoomCode, getInviteRoomFromUrl, normalizeRoomCode } from './net/Rooms';
+import { generateRoomCode, getInviteRoomFromUrl, normalizeRoomCode } from './net/Rooms';
 import { WebRtcTransport } from './net/WebRtcTransport';
 import { GhostStore } from './replay/GhostStore';
 import { decodeReplayCode, encodeReplayCode, type ReplayRecording } from './replay/Recorder';
@@ -25,8 +25,16 @@ import { createInitialState, step } from './sim/Sim';
 import { hashState } from './sim/Snapshot';
 import type { GameState } from './sim/State';
 import { getDailyChallenge, loadProgress, saveProgress } from './systems/Progress';
+import {
+  initAnalytics,
+  trackEvent,
+  trackMatchEnded,
+  trackModeStarted,
+  trackOnlineStatus,
+} from './systems/Analytics';
 import { loadSettings, saveSettings, toRenderOptions, type UserSettings } from './systems/Settings';
 import { recordMatchStats } from './systems/Stats';
+import { RoomLobby } from './ui/RoomLobby';
 import { MenuView, type MenuAction } from './ui/Menus';
 import {
   OrientationGuard,
@@ -63,6 +71,7 @@ async function bootstrap(): Promise<void> {
   const uiRoot = document.getElementById('ui-root');
   if (!canvasHost || !uiRoot) return;
 
+  initAnalytics();
   let settings: UserSettings = loadSettings();
   const renderer = new Renderer();
   await renderer.init(canvasHost);
@@ -92,6 +101,7 @@ async function bootstrap(): Promise<void> {
   let lastRecording: ReplayRecording | null = null;
   let paused = false;
   let resultsShown = false;
+  let matchStartMs = 0;
   let customPreviewState: GameState | null = null;
   let orientationGuard: OrientationGuard | null = null;
 
@@ -141,6 +151,7 @@ async function bootstrap(): Promise<void> {
   window.addEventListener('keydown', unlockAudioOnce, { once: true });
 
   const startMode = (nextMode: GameMode, action: MenuAction) => {
+    roomLobby.hide();
     mode?.dispose();
     mode = nextMode;
     lastAction = action;
@@ -148,10 +159,17 @@ async function bootstrap(): Promise<void> {
     customPreviewState = null;
     paused = false;
     resultsShown = false;
+    matchStartMs = performance.now();
     frameStep.enabled = false;
     lastEventFrame = -1;
 
     const st = nextMode.getState();
+    trackModeStarted({
+      action,
+      modeId: nextMode.id,
+      stageId: st.config.stageId,
+      touchDevice: isMobileTouchDevice(),
+    });
     renderer.mountScene(st.config.p1Char, st.config.p2Char);
     menus.setVisible(false);
     setCombatCapture(true);
@@ -167,6 +185,7 @@ async function bootstrap(): Promise<void> {
   };
 
   const returnToMenu = () => {
+    roomLobby.hide();
     setCombatCapture(false);
     mode?.dispose();
     mode = null;
@@ -285,45 +304,34 @@ async function bootstrap(): Promise<void> {
         );
         break;
       }
-      case 'HOST_ROOM': {
-        const roomId = generateRoomCode();
-        const link = buildInviteLink(roomId);
-        void navigator.clipboard?.writeText(link).catch(() => {});
-        toasts.show(`Room ${roomId} created (invite link copied)`);
-        startMode(
-          new OnlineMode({
-            transport: new WebRtcTransport(),
-            roomId,
-            isHost: true,
-            seed: (Date.now() & 0xffffff) || 404,
-            stageId: action.stageId,
-          }),
-          action,
-        );
-        break;
-      }
+      case 'HOST_ROOM':
       case 'JOIN_ROOM': {
-        const code = normalizeRoomCode(action.code);
-        if (!code) {
-          toasts.show('Enter a valid 6-character room code');
+        const isHost = action.type === 'HOST_ROOM';
+        const roomId = isHost ? generateRoomCode() : normalizeRoomCode(action.code);
+        if (!roomId) {
+          toasts.show('Enter a 6-character room code or paste an invite link.');
           return;
         }
-        startMode(
-          new OnlineMode({
-            transport: new WebRtcTransport(),
-            roomId: code,
-            isHost: false,
-            seed: 1,
-            stageId: 'beige_plain',
-          }),
-          action,
-        );
+        const stageId = isHost ? action.stageId : 'beige_plain';
+        const transport = new WebRtcTransport((status, message) => {
+          roomLobby.update(status, message);
+          setCombatCapture(status === 'connected');
+          trackOnlineStatus(status, isHost, stageId);
+        });
+        startMode(new OnlineMode({
+          transport, roomId, isHost,
+          seed: isHost ? (Date.now() & 0xffffff) || 404 : 1,
+          stageId,
+        }), action);
+        roomLobby.show(roomId, isHost);
+        setCombatCapture(false);
         break;
       }
       case 'IMPORT_REPLAY': {
         try {
           const rec = decodeReplayCode(action.code);
           startMode(new GhostDuelMode(rec, true), action);
+          trackEvent('replay_imported', { stageId: rec.config.stageId });
           toasts.show(`Playing replay: ${rec.label}`);
         } catch {
           toasts.show('Invalid replay code');
@@ -335,6 +343,8 @@ async function bootstrap(): Promise<void> {
         break;
     }
   };
+
+  const roomLobby = new RoomLobby(uiRoot, returnToMenu, () => handleMenuAction(lastAction));
 
   const menus = new MenuView(uiRoot, handleMenuAction, (stageId) => {
     menuDemoState = { ...menuDemoState, config: { ...menuDemoState.config, stageId } };
@@ -388,6 +398,7 @@ async function bootstrap(): Promise<void> {
       if (!lastRecording) return;
       const code = encodeReplayCode(lastRecording);
       void navigator.clipboard?.writeText(code).catch(() => {});
+      trackEvent('replay_copied', { modeId: mode?.id ?? 'unknown' });
       toasts.show(`Replay code copied (${code.length} chars)`);
     },
     onMainMenu: returnToMenu,
@@ -470,12 +481,6 @@ async function bootstrap(): Promise<void> {
       if (msg) toasts.show(msg);
     }
   });
-
-  // Auto-join invite link (?room=ABC123) if present in URL
-  const inviteRoom = getInviteRoomFromUrl();
-  if (inviteRoom) {
-    handleMenuAction({ type: 'JOIN_ROOM', code: inviteRoom });
-  }
 
   // Expose deterministic test/inspection hook for automated Playwright tests
   window.__DUSKBLADE__ = {
@@ -638,6 +643,23 @@ async function bootstrap(): Promise<void> {
             });
           }
 
+          const durationSec = Math.max(0, Math.round((performance.now() - matchStartMs) / 1000));
+          trackMatchEnded({
+            actionType: lastAction.type,
+            modeId: mode.id,
+            stageId: st.config.stageId,
+            p1Char: st.config.p1Char,
+            p2Char: st.config.p2Char,
+            won: st.winner === 0,
+            durationSec,
+            parries: st.stats[0].parries,
+            perfectDodges: st.stats[0].perfectDodges,
+            bossRushStage: mode instanceof BossRushMode ? mode.getCurrentStageNumber() : undefined,
+            bossRushCleared: mode instanceof BossRushMode ? mode.isFullyCleared() : undefined,
+            wavesReached: mode instanceof WavesMode ? mode.wave : undefined,
+            wavesScore: mode instanceof WavesMode ? mode.score : undefined,
+          });
+
           resultsView.show(st, mode.title, rec !== null);
         }
       }
@@ -673,6 +695,12 @@ async function bootstrap(): Promise<void> {
 
     requestAnimationFrame(loop);
   };
+
+  // Auto-join invite link (?room=ABC123) if present in URL
+  const inviteRoom = getInviteRoomFromUrl();
+  if (inviteRoom) {
+    handleMenuAction({ type: 'JOIN_ROOM', code: inviteRoom });
+  }
 
   requestAnimationFrame(loop);
 }
